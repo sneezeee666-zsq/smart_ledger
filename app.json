@@ -1,0 +1,61 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/bills/bills",
+    "pages/stats/stats",
+    "pages/ai/ai",
+    "pages/import/import",
+    "pages/add-bill/add-bill",
+    "pages/budget/budget",
+    "pages/vip/vip",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#07C160",
+    "navigationBarTitleText": "智能账本",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F2F5FA"
+  },
+  "tabBar": {
+    "color": "#8A94A6",
+    "selectedColor": "#07C160",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "assets/icons/home.png",
+        "selectedIconPath": "assets/icons/home-active-green.png"
+      },
+      {
+        "pagePath": "pages/bills/bills",
+        "text": "账单",
+        "iconPath": "assets/icons/bill.png",
+        "selectedIconPath": "assets/icons/bill-active-green.png"
+      },
+      {
+        "pagePath": "pages/stats/stats",
+        "text": "统计",
+        "iconPath": "assets/icons/chart.png",
+        "selectedIconPath": "assets/icons/chart-active-green.png"
+      },
+      {
+        "pagePath": "pages/ai/ai",
+        "text": "AI分析",
+        "iconPath": "assets/icons/ai.png",
+        "selectedIconPath": "assets/icons/ai-active-green.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "assets/icons/user.png",
+        "selectedIconPath": "assets/icons/user-active-green.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

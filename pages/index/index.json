@@ -1,0 +1,13 @@
+{
+  "navigationBarTitleText": "智能账本",
+  "navigationBarBackgroundColor": "#0B5F3A",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#F2F5FA",
+  "backgroundColorTop": "#0B5F3A",
+  "backgroundColorBottom": "#F2F5FA",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "bill-card": "/components/bill-card/bill-card"
+  }
+}

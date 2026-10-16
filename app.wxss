@@ -1,0 +1,642 @@
+/* ==========================================================================
+   智能账本 · 全局设计系统
+   --------------------------------------------------------------------------
+   命名分层：
+     --brand-*    品牌色
+     --income/--expense  语义收支色（遵循中文金融「红为进、绿为出」惯例）
+     --ink-1..4   文字层级
+     --surface-*  背景面
+     --line-*     分割线
+   --r-*        圆角
+     --sh-*       阴影
+
+主题色：
+     --brand-* 这一组令牌可在运行时切换，见文件末尾的 .theme-* 五组类。
+     page 上的值是**默认主题（微信绿）**，同时承担「页面根节点还没挂上
+     .theme-<id> 类」那一帧的兜底。
+     色值以 utils/theme.js 的 THEMES 为准，两边由 tests/static-check.js 校验。
+   ========================================================================== */
+
+page {
+  /* ---------- 品牌（默认主题：微信绿） ---------- */
+  --brand: #07C160;
+  --brand-dark: #058F48;
+  --brand-soft: #E6F8EF;
+  --brand-soft-2: #CEF0DF;      /* 按下态底色（比 soft 再深一档） */
+  --brand-grad: linear-gradient(135deg, #07C160 0%, #2ACB7B 100%);
+  --nav-grad: linear-gradient(135deg, #058F48 0%, #07C160 100%);
+  --brand-line: rgba(7, 193, 96, 0.12);
+
+  /* ---------- 深色 hero（跟随主题） ----------
+     首页与「我的」的顶部深色卡片都用这一组。
+     --hero-top 是渐变首色，同时被 JS 拿去染**原生导航栏**和下拉刷新露出的底色
+     （原生导航栏没法用 CSS 变量染色，只能调 wx.setNavigationBarColor）——
+     这样导航栏与卡片之间才不会出现一条色差接缝。
+     JS 侧同一份值在 utils/theme.js 的 THEMES[].hero，两边由 tests/static-check.js 对账。
+     ⚠️ 这套色是「中深饱和」而不是接近黑的墨色：为了好看也为了白字对比度
+        （见 utils/theme.js 里 hero 的取值标准）。 */
+  --hero-top: #0B5F3A;
+  --hero-grad: linear-gradient(165deg, #0B5F3A 0%, #0C653F 52%, #0D6B44 100%);
+  --hero-glow: radial-gradient(circle, rgba(7, 193, 96, 0.26) 0%, rgba(7, 193, 96, 0) 70%);
+  --sh-hero: 0 10rpx 26rpx rgba(11, 95, 58, 0.2);
+
+  /* 深底上的浅色文字/数字（这组不跟主题走：5 套 hero 都是中深色，同一组值都够对比度）
+     ⚠️ --on-hero-dim 只能是 0.78：hero 提亮后，0.66 那种"很淡的灰白"在卡片上
+        对比度只有 3.6:1，小字（22~24rpx 的标签）会发糊看不清。 */
+  --on-hero: #FFFFFF;
+  --on-hero-dim: rgba(255, 255, 255, 0.78);
+  --on-hero-income: #FF9FA2;
+  --on-hero-expense: #6FE0B4;
+  /* 深底上的警示色（预算超支分档用）。
+     ⚠️ 这里刻意**不用红**：hero 卡上的红色已经被 --on-hero-income 占了（收入），
+        再拿红表示"超支"，同一块卡片上两种红色表示相反的意思，谁也分不清。
+        所以警示统一走暖琥珀，超支与接近的区分交给文案，不靠颜色单独表达。 */
+  --on-hero-warn: #FFCE8A;
+
+  /* ---------- 语义收支 ----------
+     中文金融惯例：红＝进项/增加，绿＝出项/减少。
+     若想改成国际惯例（收入绿、支出红），只改下面两行即可全局生效。 */
+  --income: #E5484D;
+  --income-soft: #FDECEC;
+  --expense: #0E9F6E;
+  --expense-soft: #E6F6F0;
+
+  --accent: #E8683A;
+  --accent-soft: #FFF1E6;
+  --violet: #6D4AE0;
+  --violet-soft: #F0EDFF;
+  --amber: #D98A0B;
+  --amber-soft: #FFF4E0;
+  /* 青色：预算入口用。首页三个快捷入口的底色都跟各自的**图标**同色（图标是固定色 PNG），
+     所以这里必须是固定值 —— 若用 --brand-soft 会跟着主题变，
+     换到蓝色主题就变成「青色图标配浅蓝底」。
+     不能用 amber-soft 代替：它和 accent-soft(#FFF1E6) 几乎同色，会和「记一笔」撞脸。 */
+  --teal: #0D9488;
+  --teal-soft: #E1F5F2;
+
+  /* ---------- 文字 ---------- */
+  --ink-1: #101A2E;
+  --ink-2: #4A5568;
+  --ink-3: #8A94A6;
+  --ink-4: #B8C0CC;
+
+  /* ---------- 背景面 ---------- */
+  --surface: #FFFFFF;
+  --surface-2: #F2F5FA;
+  --surface-3: #F7F9FC;
+  --line: #E8EDF5;
+  --line-strong: #D9E1EE;
+
+  /* ---------- 圆角 ---------- */
+  --r-sm: 10rpx;
+  --r-md: 16rpx;
+  --r-lg: 24rpx;
+  --r-xl: 32rpx;
+  --r-pill: 999rpx;
+
+  /* ---------- 阴影（两层叠加比单层更自然） ---------- */
+  --sh-1: 0 1rpx 2rpx rgba(16, 26, 46, 0.03), 0 2rpx 8rpx rgba(16, 26, 46, 0.04);
+  --sh-2: 0 2rpx 6rpx rgba(16, 26, 46, 0.04), 0 10rpx 28rpx rgba(16, 26, 46, 0.07);
+  --sh-brand: 0 8rpx 20rpx rgba(7, 193, 96, 0.28);
+  --sh-brand-soft: 0 6rpx 18rpx rgba(7, 193, 96, 0.16);
+
+  background-color: var(--surface-2);
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans SC', sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+  color: var(--ink-1);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   主题色（运行时切换）
+   --------------------------------------------------------------------------
+   每个页面的根节点挂 `theme-<id>` 类，变量在这一层被重新声明，整棵子树继承。
+   每组类里有两块令牌：
+     · 品牌块（--brand-* / --sh-brand*）—— 按钮、选中态、浅色底
+     · hero 块（--hero-top / --hero-grad / --hero-glow / --sh-hero）
+       —— 首页与「我的」的顶部深色卡片；--hero-top 还会被 JS 拿去染原生导航栏
+   ⚠️ 不要把这些令牌声明在 page 上再用别名间接引用：CSS 自定义属性在「声明它的
+      元素」上就完成 var() 替换，子元素改 --brand 时别名不会跟着变，会出现
+      「切了主题但一部分地方没变色」。
+   ⚠️ 新增主题要同步四处：① 本文件的一组类（两块令牌都要）
+      ② utils/theme.js 的 THEMES（brand + hero，JS 染导航栏要用）
+      ③ assets/icons/*-active-<id>.png（跑 tools/gen-icons.py 生成）
+      ④ pages/index/index.json 的兜底色（首帧还没跑 JS，用的是静态配置）
+      漏了哪一处 tests/static-check.js 都会报出来。
+   ========================================================================== */
+
+.theme-green {
+  --brand: #07C160;
+  --brand-dark: #058F48;
+  --brand-soft: #E6F8EF;
+  --brand-soft-2: #CEF0DF;
+  --brand-grad: linear-gradient(135deg, #07C160 0%, #2ACB7B 100%);
+  --nav-grad: linear-gradient(135deg, #058F48 0%, #07C160 100%);
+  --brand-line: rgba(7, 193, 96, 0.12);
+  --sh-brand: 0 8rpx 20rpx rgba(7, 193, 96, 0.28);
+  --sh-brand-soft: 0 6rpx 18rpx rgba(7, 193, 96, 0.16);
+
+  /* 深色 hero（顶部卡片）：同色系压暗，不是把品牌色直接调亮 —— 
+     亮绿/亮橙当大面积底会刺眼，且和「支出绿」「收入红」抢注意力 */
+  --hero-top: #0B5F3A;
+  --hero-grad: linear-gradient(165deg, #0B5F3A 0%, #0C653F 52%, #0D6B44 100%);
+  --hero-glow: radial-gradient(circle, rgba(7, 193, 96, 0.26) 0%, rgba(7, 193, 96, 0) 70%);
+  --sh-hero: 0 10rpx 26rpx rgba(11, 95, 58, 0.2);
+}
+
+.theme-blue {
+  --brand: #2B5CE6;
+  --brand-dark: #1E45B8;
+  --brand-soft: #E8F0FF;
+  --brand-soft-2: #D3E2FF;
+  --brand-grad: linear-gradient(135deg, #2B5CE6 0%, #4E7BFF 100%);
+  --nav-grad: linear-gradient(135deg, #1E45B8 0%, #2B5CE6 100%);
+  --brand-line: rgba(43, 92, 230, 0.10);
+  --sh-brand: 0 8rpx 20rpx rgba(43, 92, 230, 0.26);
+  --sh-brand-soft: 0 6rpx 18rpx rgba(43, 92, 230, 0.14);
+
+  --hero-top: #1B4C8F;
+  --hero-grad: linear-gradient(165deg, #1B4C8F 0%, #1C5097 52%, #1D549E 100%);
+  --hero-glow: radial-gradient(circle, rgba(78, 123, 255, 0.3) 0%, rgba(78, 123, 255, 0) 70%);
+  --sh-hero: 0 10rpx 26rpx rgba(27, 76, 143, 0.2);
+}
+
+.theme-violet {
+  --brand: #6D4AE0;
+  --brand-dark: #5634C4;
+  --brand-soft: #F0EDFF;
+  --brand-soft-2: #DFD8FF;
+  --brand-grad: linear-gradient(135deg, #6D4AE0 0%, #9078F0 100%);
+  --nav-grad: linear-gradient(135deg, #5634C4 0%, #6D4AE0 100%);
+  --brand-line: rgba(109, 74, 224, 0.12);
+  --sh-brand: 0 8rpx 20rpx rgba(109, 74, 224, 0.28);
+  --sh-brand-soft: 0 6rpx 18rpx rgba(109, 74, 224, 0.16);
+
+  --hero-top: #4B3894;
+  --hero-grad: linear-gradient(165deg, #4B3894 0%, #4F3C9B 52%, #5340A2 100%);
+  --hero-glow: radial-gradient(circle, rgba(146, 120, 240, 0.3) 0%, rgba(146, 120, 240, 0) 70%);
+  --sh-hero: 0 10rpx 26rpx rgba(75, 56, 148, 0.2);
+}
+
+.theme-orange {
+  --brand: #F97316;
+  --brand-dark: #D45F08;
+  --brand-soft: #FFF1E7;
+  --brand-soft-2: #FFE0C9;
+  --brand-grad: linear-gradient(135deg, #F97316 0%, #FBA24B 100%);
+  --nav-grad: linear-gradient(135deg, #D45F08 0%, #F97316 100%);
+  --brand-line: rgba(249, 115, 22, 0.12);
+  --sh-brand: 0 8rpx 20rpx rgba(249, 115, 22, 0.28);
+  --sh-brand-soft: 0 6rpx 18rpx rgba(249, 115, 22, 0.16);
+
+  /* 橙色提亮后是偏暖的**烧褐**（#7F3E0B），不是浅橙 —— 浅橙当大面积底既刺眼，
+     又和「收入红/支出绿」这组语义色抢注意力 */
+  --hero-top: #7F3E0B;
+  --hero-grad: linear-gradient(165deg, #7F3E0B 0%, #86420C 52%, #8D460D 100%);
+  --hero-glow: radial-gradient(circle, rgba(249, 115, 22, 0.26) 0%, rgba(249, 115, 22, 0) 70%);
+  --sh-hero: 0 10rpx 26rpx rgba(127, 62, 11, 0.2);
+}
+
+.theme-rose {
+  --brand: #EC4899;
+  --brand-dark: #CE2E7E;
+  --brand-soft: #FDECF4;
+  --brand-soft-2: #FBD8E9;
+  --brand-grad: linear-gradient(135deg, #EC4899 0%, #F472B6 100%);
+  --nav-grad: linear-gradient(135deg, #CE2E7E 0%, #EC4899 100%);
+  --brand-line: rgba(236, 72, 153, 0.12);
+  --sh-brand: 0 8rpx 20rpx rgba(236, 72, 153, 0.28);
+  --sh-brand-soft: 0 6rpx 18rpx rgba(236, 72, 153, 0.16);
+
+  --hero-top: #94224F;
+  --hero-grad: linear-gradient(165deg, #94224F 0%, #9A2453 52%, #A02657 100%);
+  --hero-glow: radial-gradient(circle, rgba(244, 114, 182, 0.28) 0%, rgba(244, 114, 182, 0) 70%);
+  --sh-hero: 0 10rpx 26rpx rgba(148, 34, 79, 0.2);
+}
+
+/* ==========================================================================
+   布局容器
+   ========================================================================== */
+
+.container {
+  padding: 24rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* 通栏容器（用于需要贴边的 hero） */
+.container-flush {
+  padding: 0;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.flex { display: flex; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-column { display: flex; flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.flex-1 { flex: 1; min-width: 0; }
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ==========================================================================
+   卡片
+   ========================================================================== */
+
+.card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: var(--sh-1);
+}
+
+.card-tight { padding: 20rpx 28rpx; }
+.card-flush { padding: 0; overflow: hidden; }
+
+/* 卡片标题行 */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+  letter-spacing: 0.2rpx;
+}
+
+.card-sub {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+/* 可点击的「更多」 */
+.more-link {
+  font-size: 24rpx;
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.more-link::after {
+  content: '›';
+  font-size: 28rpx;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   文字
+   ========================================================================== */
+
+.text-primary { color: var(--brand); }
+.text-success { color: var(--expense); }
+.text-danger { color: var(--income); }
+.text-secondary { color: var(--ink-2); }
+.text-hint { color: var(--ink-3); }
+.text-bold { font-weight: 600; }
+.text-center { text-align: center; }
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 金额专用：等宽数字，保证多行金额小数点对齐 */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.3rpx;
+}
+
+/* ==========================================================================
+   金额
+   ========================================================================== */
+
+.amount-income { color: var(--income); font-weight: 600; }
+.amount-expense { color: var(--expense); font-weight: 600; }
+
+.amount-large { font-size: 48rpx; font-weight: 700; }
+.amount-medium { font-size: 36rpx; font-weight: 600; }
+
+/* ==========================================================================
+   按钮
+   ========================================================================== */
+
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+  border-radius: var(--r-pill);
+  padding: 0 40rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  text-align: center;
+  border: none;
+  box-shadow: var(--sh-brand);
+}
+
+.btn-primary::after { border: none; }
+
+/* 禁用态：去掉阴影，降低不透明度 */
+.btn-primary[disabled],
+.btn-primary.disabled {
+  background: var(--line-strong);
+  color: #fff;
+  box-shadow: none;
+  opacity: 1;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--brand);
+  border: 2rpx solid var(--brand);
+  border-radius: var(--r-pill);
+  padding: 0 38rpx;
+  height: 84rpx;
+  line-height: 80rpx;
+  font-size: 30rpx;
+  text-align: center;
+}
+
+.btn-outline::after { border: none; }
+
+.btn-ghost {
+  background: var(--surface-3);
+  color: var(--ink-2);
+  border-radius: var(--r-pill);
+  padding: 0 36rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  font-size: 30rpx;
+  text-align: center;
+  border: none;
+}
+
+.btn-ghost::after { border: none; }
+
+/* 危险操作按钮（删除记录 / 未来的其它不可恢复操作）
+   底色用 --income 这个红：本项目里「红」的语义就是红（收入红），
+   与 .text-danger / .tag-danger 一致，不另造一个红色。 */
+.btn-danger {
+  background: var(--income);
+  color: #fff;
+  border-radius: var(--r-pill);
+  padding: 0 38rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  font-size: 30rpx;
+  text-align: center;
+  border: none;
+  box-shadow: 0 8rpx 20rpx rgba(229, 72, 77, 0.24);
+}
+
+.btn-danger::after { border: none; }
+
+.btn-danger-hover {
+  opacity: 0.88;
+}
+
+/* 小尺寸按钮（空状态里并排使用） */
+.btn-sm {
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: 26rpx;
+  padding: 0 30rpx;
+  margin: 0;
+}
+
+/* ==========================================================================
+   标签 / 徽章
+   ========================================================================== */
+
+.tag {
+  display: inline-block;
+  padding: 2rpx 14rpx;
+  border-radius: var(--r-pill);
+  font-size: 21rpx;
+  line-height: 1.7;
+}
+
+.tag-primary { background: var(--brand-soft); color: var(--brand); }
+.tag-success { background: var(--expense-soft); color: var(--expense); }
+.tag-danger { background: var(--income-soft); color: var(--income); }
+.tag-neutral { background: var(--surface-3); color: var(--ink-3); }
+
+/* 语义收支标签：与金额颜色保持一致（收入红、支出绿），
+   避免出现「收入是红字却配绿标签」的割裂感 */
+.tag-income { background: var(--income-soft); color: var(--income); }
+.tag-expense { background: var(--expense-soft); color: var(--expense); }
+
+/* ==========================================================================
+   分割线 / 分段控件
+   ========================================================================== */
+
+.divider {
+  height: 1rpx;
+  background: var(--line);
+  margin: 20rpx 0;
+}
+
+/* 分段控件（支出/收入、本周/本月/本年 等） */
+.seg {
+  display: flex;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  padding: 6rpx;
+  gap: 6rpx;
+}
+
+.seg-item {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  font-size: 27rpx;
+  color: var(--ink-2);
+  border-radius: 11rpx;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.seg-item.active {
+  background: var(--surface);
+  color: var(--ink-1);
+  font-weight: 600;
+  box-shadow: 0 2rpx 8rpx rgba(16, 26, 46, 0.08);
+}
+
+.seg-item.active.is-income { color: var(--income); }
+.seg-item.active.is-expense { color: var(--expense); }
+
+/* ==========================================================================
+   空状态
+   ========================================================================== */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64rpx 40rpx 56rpx;
+}
+
+.empty-icon {
+  width: 156rpx;
+  height: 156rpx;
+  opacity: 0.75;
+  margin-bottom: 8rpx;
+}
+
+/* 兼容旧的 emoji 空状态写法 */
+.empty-emoji {
+  font-size: 108rpx;
+  margin-bottom: 16rpx;
+  opacity: 0.85;
+}
+
+.empty-text {
+  font-size: 26rpx;
+  color: var(--ink-3);
+  text-align: center;
+  line-height: 1.7;
+}
+
+.empty-action {
+  margin-top: 28rpx;
+  display: flex;
+  gap: 16rpx;
+}
+
+/* ==========================================================================
+   骨架屏
+   ========================================================================== */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-3) 25%, #EDF1F8 37%, var(--surface-3) 63%);
+  background-size: 400% 100%;
+  border-radius: var(--r-sm);
+  animation: sk-slide 1.4s ease infinite;
+}
+
+@keyframes sk-slide {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.sk-row {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  gap: 20rpx;
+}
+
+.sk-circle {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 22rpx;
+  flex-shrink: 0;
+}
+
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap: 14rpx; }
+
+.sk-line { height: 24rpx; }
+.sk-line.short { width: 40%; }
+.sk-line.mid { width: 68%; }
+
+/* ==========================================================================
+   底部弹层
+   ========================================================================== */
+
+.sheet-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(12, 20, 38, 0.45);
+  z-index: 1000;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1001;
+  background: var(--surface);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.sheet-grip {
+  width: 72rpx;
+  height: 8rpx;
+  border-radius: 4rpx;
+  background: var(--line-strong);
+  margin: 16rpx auto 0;
+  flex-shrink: 0;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 32rpx 16rpx;
+  flex-shrink: 0;
+}
+
+.sheet-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.sheet-close {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 32rpx 32rpx;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ==========================================================================
+   安全区 / 其他
+   ========================================================================== */
+
+.safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.loading {
+  text-align: center;
+  padding: 40rpx;
+  color: var(--ink-3);
+  font-size: 26rpx;
+}

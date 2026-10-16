@@ -1,0 +1,386 @@
+/* ==========================================================================
+   AI 分析（界面先行版）
+   ========================================================================== */
+
+/* ==================== 顶部 AI 卡 ====================
+   与首页概览卡、我的品牌卡共用同一组 hero 令牌：
+   换主题时三块深色卡片永远同色（值由 utils/theme.js 的 hero 字段驱动）。 */
+.hero {
+  position: relative;
+  padding: 32rpx;
+  margin: 0 24rpx 20rpx;
+  border-radius: var(--r-xl);
+  background-color: var(--hero-top);
+  background-image: var(--hero-grad);
+  overflow: hidden;
+  box-shadow: var(--sh-hero);
+}
+
+.hero-glow {
+  position: absolute;
+  width: 360rpx;
+  height: 360rpx;
+  right: -130rpx;
+  top: -170rpx;
+  border-radius: 50%;
+  background: var(--hero-glow);
+  pointer-events: none;
+}
+
+.hero-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 32rpx;
+}
+
+.mark {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1rpx solid rgba(255, 255, 255, 0.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mark-img {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.hero-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.hero-name {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--on-hero);
+}
+
+.hero-desc {
+  font-size: 22rpx;
+  color: var(--on-hero-dim);
+  line-height: 1.5;
+}
+
+/* 主行动按钮：深底上唯一的实心按钮，用白底让"这是主要动作"一眼可见。
+   ⚠️ 文字色取 --hero-top 而不是写死的深色：白底与该色的对比度
+      等于"白字在 hero 上"的对比度（对比度是对称的），
+      所以只要 hero 上的白字够清楚，这里就够清楚，换主题自动成立。 */
+.hero-cta {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 92rpx;
+  line-height: 92rpx;
+  margin-top: 4rpx;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-pill);
+  background: #FFFFFF;
+  color: var(--hero-top);
+  font-size: 30rpx;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.5rpx;
+}
+
+.hero-cta::after { border: none; }
+
+.hero-cta-hover {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.hero-note {
+  position: relative;
+  display: block;
+  margin-top: 18rpx;
+  font-size: 21rpx;
+  color: var(--on-hero-dim);
+  text-align: center;
+}
+
+/* 分析范围切换：放在深色 hero 卡内，用半透明白底分段，选中项实心白 */
+.scope-switch {
+  position: relative;
+  display: flex;
+  margin-top: 20rpx;
+  padding: 6rpx;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.scope-item {
+  flex: 1;
+  height: 60rpx;
+  line-height: 60rpx;
+  text-align: center;
+  font-size: 24rpx;
+  font-weight: 500;
+  color: var(--on-hero-dim);
+  border-radius: var(--r-pill);
+  transition: all 0.2s ease;
+}
+
+.scope-item.active {
+  background: #FFFFFF;
+  color: var(--hero-top);
+  font-weight: 600;
+}
+
+/* ==================== 通用区块间距 ==================== */
+
+.sec {
+  margin: 0 24rpx 20rpx;
+}
+
+/* ==================== 分析结论卡片 ==================== */
+
+.ins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+}
+
+.ins {
+  padding: 24rpx 24rpx 8rpx;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+/* 三档角标：复用预算页那套语义色（绿=正常 / 琥珀=提醒 / 红=警示），
+   两处用同一组令牌，界面上"红=要注意"的含义不会飘。
+   ⚠️ 左侧色条**不用属性选择器**（class 上没有 data-*，基础库支持度也不稳）——
+      真正区分档位的是下面这三个 .bd-* 角标。 */
+.ins-badge.bd-warn { background: var(--income-soft); color: var(--income); }
+.ins-badge.bd-tip { background: var(--amber-soft); color: var(--amber); }
+.ins-badge.bd-info { background: var(--brand-soft); color: var(--brand-dark); }
+
+.ins-head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.ins-badge {
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+.ins-title {
+  display: block;
+  font-size: 29rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+  line-height: 1.45;
+}
+
+.ins-detail {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  color: var(--ink-2);
+  line-height: 1.65;
+}
+
+/* 依据区：把每条结论用到的数字摊开，用户可以自己对着账单核。
+   这是本项目的核心承诺 —— 派生数字必须可核对。 */
+.ev-list {
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.ev {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 6rpx 0;
+}
+
+.ev-k {
+  flex: 1;
+  min-width: 0;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.ev-v {
+  flex-shrink: 0;
+  font-size: 23rpx;
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+.ins-foot {
+  padding-top: 18rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  text-align: center;
+}
+
+/* ==================== 加载骨架 ==================== */
+/* 行内的 .sk-row / .skeleton / .sk-line 都是 app.wxss 的全局类，
+   这里只补外层容器的间距。 */
+.sk-card {
+  margin: 0;
+}
+
+/* ==================== 会分析什么 ==================== */
+
+.dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.dim {
+  width: calc(50% - 8rpx);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  padding: 20rpx 22rpx;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.dim-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+/* 描述文案两行封顶：字数不一时卡片高度会参差，看起来像没对齐 */
+.dim-desc {
+  font-size: 21rpx;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* ==================== 脚注 ==================== */
+
+.footnote {
+  text-align: center;
+  padding: 16rpx 48rpx 48rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  line-height: 1.6;
+}
+
+/* ==================== 会员门控（锁定态） ==================== */
+
+/* 结果卡要成为遮罩的定位父级 */
+.result-card {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 非会员的主按钮换成金色会员风（按钮在深色 hero 上，用白字金字会看不清 → 金底深字） */
+.hero-cta-vip {
+  background: linear-gradient(135deg, #F0C36B, #D69E40);
+  color: #4E3208;
+  font-weight: 700;
+}
+
+/* 模糊预览：锁定时整个结果区打码（filter 在小程序里对 view 有效）。
+   ⚠️ blur 加在内容层而不是遮罩层 —— 遮罩本身不能糊，否则按钮没法点。 */
+.blur-preview.is-locked {
+  filter: blur(9rpx);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 锁定时的假结论卡：只有轮廓（色块 + 灰条），没有任何真数字 */
+.fake-ins {
+  padding: 24rpx;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  margin-bottom: 18rpx;
+}
+
+.fake-badge {
+  width: 96rpx;
+  height: 30rpx;
+  border-radius: 8rpx;
+  background: var(--line);
+  margin-bottom: 16rpx;
+}
+
+.fake-line {
+  height: 26rpx;
+  border-radius: 8rpx;
+  margin-bottom: 12rpx;
+}
+
+.fake-line.short {
+  width: 55%;
+  margin-bottom: 0;
+}
+
+/* 遮罩：盖住整个结果区，白底轻微透出模糊内容 */
+.lock-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(250, 251, 253, 0.62);
+}
+
+.lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  width: 78%;
+  padding: 36rpx 28rpx;
+  border-radius: var(--r-xl);
+  background: #FFFFFF;
+  box-shadow: 0 10rpx 30rpx rgba(30, 40, 60, 0.10);
+}
+
+.lock-icon {
+  width: 52rpx;
+  height: 52rpx;
+}
+
+.lock-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.lock-desc {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.lock-btn {
+  margin-top: 10rpx;
+  min-width: 260rpx;
+  background: linear-gradient(135deg, #F0C36B, #D69E40);
+  color: #4E3208;
+  font-weight: 700;
+}
+
+.lock-btn-hover {
+  opacity: 0.88;
+}

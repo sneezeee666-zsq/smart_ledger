@@ -1,0 +1,221 @@
+/**
+ * 会员中心样式
+ * 会员卡是全项目第二张金色系卡片（第一处是预算页的琥珀警示），
+ * 金色不进主题系统 —— 「会员」的尊贵感不该跟着用户选的主题变绿变紫。
+ */
+
+/* ==================== 会员卡 ==================== */
+
+.vip-hero {
+  position: relative;
+  margin: 24rpx 24rpx 0;
+  padding: 44rpx 36rpx 40rpx;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  /* 金色系渐变：165deg 与全项目 hero 卡同方向 */
+  background: linear-gradient(165deg, #8A6420 0%, #6E4A12 55%, #4E3208 100%);
+  box-shadow: var(--sh-hero);
+}
+
+.vh-glow {
+  position: absolute;
+  top: -70rpx;
+  right: -50rpx;
+  width: 240rpx;
+  height: 240rpx;
+  border-radius: 50%;
+  background: rgba(255, 214, 138, 0.16);
+}
+
+.vh-crown {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22rpx;
+}
+
+.vh-crown-img {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.vh-title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.vh-sub {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: rgba(255, 244, 222, 0.85);
+}
+
+.vh-badge {
+  display: inline-flex;
+  margin-top: 24rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 214, 138, 0.22);
+  border: 1rpx solid rgba(255, 214, 138, 0.45);
+}
+
+.vh-badge-text {
+  font-size: 22rpx;
+  color: #FFE3A6;
+  font-weight: 600;
+}
+
+/* ==================== 功能对比表 ==================== */
+
+.cmp {
+  display: flex;
+  flex-direction: column;
+}
+
+.cmp-row {
+  display: flex;
+  align-items: center;
+  padding: 22rpx 4rpx;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.cmp-row-last {
+  border-bottom: none;
+}
+
+/* 会员独占的两行淡金底：把"差别在哪"直接标出来，不用逐行读字 */
+.cmp-row-hl {
+  background: rgba(214, 158, 64, 0.08);
+  border-radius: var(--r-md);
+}
+
+.cmp-head {
+  padding-bottom: 16rpx;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.cmp-name {
+  flex: 1.6;
+  font-size: 25rpx;
+  color: var(--ink-1);
+}
+
+.cmp-head .cmp-name {
+  font-size: 22rpx;
+  color: var(--ink-4);
+}
+
+.cmp-col {
+  flex: 1;
+  text-align: center;
+  font-size: 24rpx;
+  color: var(--ink-2);
+}
+
+.cmp-head .cmp-col {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--ink-4);
+}
+
+.cmp-col-vip {
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.cmp-val-vip {
+  color: #A9761B;
+}
+
+/* ==================== 开通区 ==================== */
+
+.buy-card {
+  margin-top: 20rpx;
+}
+
+.buy-price-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 14rpx;
+  padding: 8rpx 0 24rpx;
+}
+
+.buy-price {
+  font-size: 64rpx;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+
+.buy-price-note {
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.btn-buy {
+  width: 100%;
+}
+
+.btn-buy-hover {
+  opacity: 0.88;
+}
+
+.buy-tip {
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 21rpx;
+  color: var(--ink-4);
+}
+
+/* ==================== 已开通权益 ==================== */
+
+.own-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.own-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+}
+
+.own-item-last {
+  padding-bottom: 6rpx;
+}
+
+.own-dot {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #A9761B;
+}
+
+.own-text {
+  font-size: 25rpx;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* ==================== 脚注 ==================== */
+
+.footnote {
+  padding: 28rpx 40rpx 40rpx;
+}
+
+.footnote-text {
+  display: block;
+  text-align: center;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  line-height: 1.6;
+}

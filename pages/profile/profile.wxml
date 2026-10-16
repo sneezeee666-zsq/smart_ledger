@@ -1,0 +1,262 @@
+<view class="container theme-{{theme}}">
+
+  <!-- ==================== 顶部品牌卡 ==================== -->
+  <view class="hero">
+    <view class="hero-glow"></view>
+
+    <view class="hero-top">
+      <view class="mark">
+        <image class="mark-img" src="/assets/icons/app-mark.png" mode="aspectFit" />
+      </view>
+      <view class="hero-text">
+        <text class="hero-name">智能账本</text>
+        <text class="hero-desc">数据仅存于你的云环境，按账号隔离</text>
+      </view>
+      <text class="hero-ver num">{{versionLabel}}</text>
+    </view>
+
+    <view class="hero-stats">
+      <view class="hs-item">
+        <text class="hs-value num">{{totalBills}}</text>
+        <text class="hs-label">总记录</text>
+      </view>
+      <view class="hs-line"></view>
+      <view class="hs-item">
+        <text class="hs-value num">{{totalDays}}</text>
+        <text class="hs-label">记账天数</text>
+      </view>
+      <view class="hs-line"></view>
+      <view class="hs-item">
+        <text class="hs-value num">{{categoryCount}}</text>
+        <text class="hs-label">使用分类</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 数据管理 ==================== -->
+  <view class="card group">
+    <text class="group-title">数据管理</text>
+
+    <view class="menu-item" bindtap="goToImport" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-blue">
+        <image class="menu-img" src="/assets/icons/mi-import.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">导入微信账单</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
+    <view class="menu-item" bindtap="exportData" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-green">
+        <image class="menu-img" src="/assets/icons/mi-export.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">导出账单</text>
+      <text class="menu-sub">CSV</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
+    <view class="menu-item menu-item-last" bindtap="clearAllData" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-red">
+        <image class="menu-img" src="/assets/icons/mi-trash.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text danger-text">清空账单数据</text>
+      <text class="menu-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- ==================== 设置 ==================== -->
+  <view class="card group">
+    <text class="group-title">设置</text>
+
+    <view class="menu-item" bindtap="openNickSheet" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-teal">
+        <image class="menu-img" src="/assets/icons/mi-user.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">我的昵称</text>
+      <text class="menu-sub">{{nickname || '未设置'}}</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
+    <view class="menu-item menu-item-last" bindtap="openThemeSheet" hover-class="menu-hover" hover-stay-time="60">
+      <!-- 图标不用 PNG，直接显示当前主题色：一眼就能看到现在用的是哪套色 -->
+      <view class="menu-icon" style="background: {{themeBrand}}1F;">
+        <view class="theme-dot" style="background: {{themeBrand}}"></view>
+      </view>
+      <text class="menu-text">主题颜色</text>
+      <text class="menu-sub">{{themeName}}</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <!-- 后续设置项（预算设置、提醒等）加在这里，
+         注意把 menu-item-last 挪到新的最后一项上 -->
+  </view>
+
+  <!-- ==================== 关于 ==================== -->
+  <view class="card group">
+    <text class="group-title">说明</text>
+
+    <view class="menu-item" bindtap="showCategoryRules" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-amber">
+        <image class="menu-img" src="/assets/icons/mi-grid.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">分类是怎么识别的</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
+    <view class="menu-item" bindtap="showPrivacy" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-violet">
+        <image class="menu-img" src="/assets/icons/mi-sliders.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">数据与隐私</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
+    <view class="menu-item menu-item-last" bindtap="showAbout" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-slate">
+        <image class="menu-img" src="/assets/icons/mi-info.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">关于智能账本</text>
+      <text class="menu-sub num">{{versionLabel}}</text>
+      <text class="menu-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="footnote">
+    <text>所有统计均实时计算自你的云端账单</text>
+  </view>
+
+  <!-- ==================== 主题选择弹层 ==================== -->
+  <view class="sheet-mask" wx:if="{{showThemeSheet}}" bindtap="closeThemeSheet"></view>
+  <view class="sheet" wx:if="{{showThemeSheet}}">
+    <view class="sheet-grip"></view>
+    <view class="sheet-head">
+      <text class="sheet-title">主题颜色</text>
+      <view class="sheet-close" bindtap="closeThemeSheet">✕</view>
+    </view>
+
+    <view class="sheet-body">
+      <view class="theme-grid">
+        <view
+          class="theme-cell {{item.id === theme ? 'is-on' : ''}}"
+          wx:for="{{themeList}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="onPickTheme"
+          hover-class="theme-cell-hover"
+          hover-stay-time="60"
+        >
+          <view class="theme-swatch" style="background: {{item.brand}};">
+            <text class="theme-tick" wx:if="{{item.id === theme}}">✓</text>
+          </view>
+          <text class="theme-name">{{item.name}}</text>
+        </view>
+      </view>
+
+      <text class="theme-note">切换后立即生效：首页、账单、统计、我的，以及底部导航的图标与文字会一起变色。选择跟着你的账号走，不会影响账单数据。</text>
+    </view>
+  </view>
+
+  <!-- ==================== 昵称编辑弹层 ====================
+       昵称只是"显示名"：不是账号、不能用来登录，也不影响账单数据。
+       长度校验前后端各有一份（前端为了即时反馈），真正说了算的是云函数。 -->
+  <view class="sheet-mask" wx:if="{{showNickSheet}}" bindtap="closeNickSheet"></view>
+  <view class="sheet" wx:if="{{showNickSheet}}">
+    <view class="sheet-grip"></view>
+    <view class="sheet-head">
+      <text class="sheet-title">我的昵称</text>
+      <view class="sheet-close" bindtap="closeNickSheet">✕</view>
+    </view>
+
+    <view class="sheet-body">
+      <view class="nick-field">
+        <input
+          class="nick-input"
+          type="text"
+          value="{{nickDraft}}"
+          maxlength="12"
+          focus="{{true}}"
+          placeholder="2-12 个字符，中英文均可"
+          placeholder-class="nick-ph"
+          confirm-type="done"
+          bindinput="onNickInput"
+          bindconfirm="saveNickname"
+        />
+        <text class="nick-count num">{{nickLen}}/12</text>
+      </view>
+
+      <text class="nick-error" wx:if="{{nickError}}">{{nickError}}</text>
+
+      <text class="nick-note">昵称只用在首页的问候语和这一页的展示上。它不是账号、不能用来登录，也不影响你的任何账单数据。留空保存 = 清除昵称。</text>
+
+      <view class="nick-actions">
+        <button
+          class="btn-primary nick-save"
+          bindtap="saveNickname"
+          disabled="{{nickSaving}}"
+          hover-class="nick-save-hover"
+        >{{nickSaving ? '保存中…' : '保存'}}</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 关于弹层 ====================
+       作者 / 邮箱 / GitHub / 版权。
+       用底部弹层而不是 wx.showModal：modal 的正文是死的纯文本，
+       里面的邮箱和链接既点不了也复制不了，只能手抄，而手抄基本会抄错。
+       这里邮箱与 GitHub 两行点一下就是复制（复制的是常量原文）。 -->
+  <view class="sheet-mask" wx:if="{{showAboutSheet}}" bindtap="closeAboutSheet"></view>
+  <view class="sheet" wx:if="{{showAboutSheet}}">
+    <view class="sheet-grip"></view>
+    <view class="sheet-head">
+      <text class="sheet-title">关于智能账本</text>
+      <view class="sheet-close" bindtap="closeAboutSheet">✕</view>
+    </view>
+
+    <view class="sheet-body">
+      <view class="ab-brand">
+        <view class="ab-mark">
+          <image class="ab-mark-img" src="/assets/icons/app-mark.png" mode="aspectFit" />
+        </view>
+        <view class="ab-brand-text">
+          <text class="ab-name">智能账本</text>
+          <text class="ab-ver num">{{versionLabel}}</text>
+        </view>
+      </view>
+
+      <text class="ab-desc">基于微信云开发的个人记账小程序。支持微信支付账单导入、手动记账与多维度统计分析。账单存放在你自己的云开发环境中，按微信账号隔离。</text>
+
+      <view class="ab-card">
+        <view class="ab-row">
+          <text class="ab-k">作者</text>
+          <text class="ab-v">{{author}}</text>
+        </view>
+
+        <view
+          class="ab-row ab-row-tap"
+          data-field="email"
+          bindtap="copyAbout"
+          hover-class="ab-row-hover"
+          hover-stay-time="60"
+        >
+          <text class="ab-k">邮箱</text>
+          <text class="ab-v num">{{email}}</text>
+          <text class="ab-copy">复制</text>
+        </view>
+
+        <view
+          class="ab-row ab-row-tap ab-row-last"
+          data-field="github"
+          bindtap="copyAbout"
+          hover-class="ab-row-hover"
+          hover-stay-time="60"
+        >
+          <text class="ab-k">GitHub</text>
+          <text class="ab-v ab-v-link text-ellipsis">{{github}}</text>
+          <text class="ab-copy">复制</text>
+        </view>
+      </view>
+
+      <text class="ab-copyright">{{copyright}}</text>
+      <text class="ab-note">个人练习作品，不收集任何个人信息，也不含第三方统计或广告 SDK。源码与问题反馈见上方 GitHub 地址。</text>
+    </view>
+  </view>
+
+</view>

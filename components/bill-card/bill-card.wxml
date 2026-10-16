@@ -1,0 +1,48 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<!-- 外层只做一件事：裁切（卡片左移后不能溢出到卡片外面） -->
+<view class="swipe-wrap">
+
+  <!-- 左滑露出的删除键：垫在卡片下层，卡片左移后才看得见。
+       宽度见 .swipe-del 的 width，JS 里用 REVEAL_RPX 算位移上限，两处必须同值 -->
+  <view class="swipe-del" wx:if="{{swipeable}}" bindtap="onDeleteTap" hover-class="swipe-del-hover" hover-stay-time="60">
+    <text class="swipe-del-text">删除</text>
+  </view>
+
+  <view
+    class="bill-card {{compact ? 'is-compact' : ''}} {{showBorder === false ? 'no-border' : ''}} {{dragging ? '' : 'is-anim'}}"
+    style="{{swipeable ? 'transform: translateX(' + offset + 'px);' : ''}}"
+    bindtap="onTap"
+    bindtouchstart="onTouchStart"
+    bindtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchEnd"
+    hover-class="{{clickable ? 'bill-card-hover' : ''}}"
+    hover-stay-time="60"
+  >
+    <view class="bill-icon" style="background: {{bill.color || '#2B5CE6'}}1F;">
+      <text class="bill-icon-emoji">{{bill.icon || '📝'}}</text>
+    </view>
+
+    <view class="bill-info">
+      <text class="bill-title text-ellipsis">{{bill.title || (bill.type === 'income' ? '收入' : '支出')}}</text>
+      <view class="bill-meta">
+        <text class="bill-cat">{{bill.category || '其他'}}</text>
+        <block wx:if="{{bill.product}}">
+          <text class="bill-sep">·</text>
+          <text class="bill-product text-ellipsis">{{bill.product}}</text>
+        </block>
+      </view>
+    </view>
+
+    <view class="bill-right">
+      <text class="bill-amount num {{bill.type === 'income' ? 'amount-income' : 'amount-expense'}}">
+        {{bill.type === 'income' ? '+' : '-'}}{{fmt.amount(bill.amount)}}
+      </text>
+      <text class="bill-time num" wx:if="{{showDate !== false}}">
+        {{fmt.byMode(bill.createTime, timeMode)}}
+      </text>
+    </view>
+  </view>
+
+</view>

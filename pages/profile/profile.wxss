@@ -1,0 +1,469 @@
+/* ==========================================================================
+   个人中心
+   ========================================================================== */
+
+/* ==================== 顶部品牌卡 ==================== */
+
+.hero {
+  position: relative;
+  padding: 32rpx;
+  margin-bottom: 20rpx;
+  border-radius: var(--r-xl);
+  /* 与首页同一个数据源：纯色兜底 + 渐变，两块深色卡片永远同色 */
+  background-color: var(--hero-top);
+  background-image: var(--hero-grad);
+  overflow: hidden;
+  box-shadow: var(--sh-hero);
+}
+
+.hero-glow {
+  position: absolute;
+  width: 360rpx;
+  height: 360rpx;
+  right: -130rpx;
+  top: -170rpx;
+  border-radius: 50%;
+  background: var(--hero-glow);
+  pointer-events: none;
+}
+
+.hero-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 32rpx;
+}
+
+.mark {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1rpx solid rgba(255, 255, 255, 0.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mark-img {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.hero-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.hero-name {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--on-hero);
+}
+
+.hero-desc {
+  font-size: 22rpx;
+  color: var(--on-hero-dim);
+}
+
+.hero-ver {
+  font-size: 22rpx;
+  color: var(--on-hero-dim);
+  padding: 6rpx 16rpx;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.hero-stats {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-top: 28rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.2);
+}
+
+.hs-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.hs-value {
+  font-size: 46rpx;
+  font-weight: 700;
+  color: var(--on-hero);
+  line-height: 1.1;
+}
+
+.hs-label {
+  font-size: 22rpx;
+  color: var(--on-hero-dim);
+}
+
+.hs-line {
+  width: 1rpx;
+  height: 52rpx;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+/* ==================== 菜单分组 ==================== */
+
+.group {
+  padding: 8rpx 28rpx;
+}
+
+.group-title {
+  display: block;
+  font-size: 23rpx;
+  color: var(--ink-3);
+  padding: 22rpx 0 6rpx;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.menu-item-last {
+  border-bottom: none;
+}
+
+.menu-hover {
+  background: var(--surface-3);
+}
+
+.menu-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.menu-img {
+  width: 36rpx;
+  height: 36rpx;
+}
+
+/* 图标底色跟随各自的图标配色（图标是固定色的 PNG），
+   所以只能用固定的浅色底，不能跟着主题走 —— 否则会出现蓝图标配绿底的割裂感。 */
+.ic-blue { background: #E8F0FF; }
+.ic-green { background: var(--expense-soft); }
+.ic-red { background: var(--income-soft); }
+.ic-amber { background: var(--amber-soft); }
+.ic-violet { background: var(--violet-soft); }
+.ic-slate { background: var(--surface-3); }
+.ic-teal { background: #E3F5F2; }
+
+/* 主题色点：色值由 JS 按当前主题内联写入 */
+.theme-dot {
+  width: 30rpx;
+  height: 30rpx;
+  border-radius: 50%;
+}
+
+.menu-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 29rpx;
+  color: var(--ink-1);
+}
+
+.danger-text {
+  color: var(--income);
+}
+
+.menu-sub {
+  font-size: 23rpx;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.menu-arrow {
+  font-size: 32rpx;
+  color: var(--ink-4);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ==================== 主题选择弹层 ==================== */
+
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24rpx 0;
+  padding: 8rpx 0 4rpx;
+}
+
+/* 一行 3 个，第 4、5 个自动落到第二行 */
+.theme-cell {
+  width: 33.333%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14rpx;
+  padding: 12rpx 0;
+}
+
+.theme-swatch {
+  width: 108rpx;
+  height: 108rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 16rpx rgba(16, 26, 46, 0.12);
+  transition: transform 0.15s ease;
+}
+
+.theme-cell-hover .theme-swatch {
+  transform: scale(0.94);
+}
+
+/* 选中态：用双层 box-shadow 描边（不用 border —— 会撑大盒子导致错位），
+   并且配一个对勾，不靠颜色区分，色弱用户也能看出来。 */
+.theme-cell.is-on .theme-swatch {
+  box-shadow:
+    0 0 0 6rpx var(--surface),
+    0 0 0 10rpx var(--ink-1),
+    0 6rpx 16rpx rgba(16, 26, 46, 0.12);
+}
+
+.theme-tick {
+  color: #fff;
+  font-size: 44rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.theme-name {
+  font-size: 23rpx;
+  color: var(--ink-2);
+}
+
+.theme-cell.is-on .theme-name {
+  color: var(--ink-1);
+  font-weight: 600;
+}
+
+.theme-note {
+  display: block;
+  margin-top: 24rpx;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+/* ==================== 昵称编辑弹层 ==================== */
+
+/* 输入框和字数计数共用一个外框：看起来是「一个输入区域」，
+   而不是"一个框 + 旁边飘着几个数字" */
+.nick-field {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  background: var(--surface-3);
+  border: 1rpx solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0 24rpx;
+  margin-top: 8rpx;
+}
+
+/* 外框已经有底色了，input 自己不要再画背景 */
+.nick-input {
+  flex: 1;
+  min-width: 0;
+  height: 96rpx;
+  font-size: 30rpx;
+  color: var(--ink-1);
+}
+
+.nick-ph {
+  color: var(--ink-4);
+}
+
+.nick-count {
+  font-size: 23rpx;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.nick-error {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 23rpx;
+  color: var(--income);
+}
+
+.nick-note {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+/* button 自带 margin，套一层 flex 容器再让它 flex:1 撑满（与详情弹层同做法） */
+.nick-actions {
+  display: flex;
+  margin-top: 32rpx;
+}
+
+.nick-save {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.nick-save-hover {
+  opacity: 0.88;
+}
+
+/* ==================== 关于弹层 ==================== */
+
+.ab-brand {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 8rpx 0 24rpx;
+}
+
+/* 关于卡是**白底**，所以图标底色用品牌的浅色版（与 hero 上那块半透明白不同） */
+.ab-mark {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 24rpx;
+  background: var(--brand-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ab-mark-img {
+  width: 48rpx;
+  height: 48rpx;
+}
+
+.ab-brand-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.ab-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.ab-ver {
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.ab-desc {
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.75;
+  color: var(--ink-2);
+  margin-bottom: 28rpx;
+}
+
+.ab-card {
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  padding: 4rpx 24rpx;
+}
+
+.ab-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.ab-row-last {
+  border-bottom: none;
+}
+
+/* 可点的一行要有按压反馈：不然「这一行能点」这件事完全看不出来 */
+.ab-row-tap {
+  transition: opacity 0.15s ease;
+}
+
+.ab-row-hover {
+  opacity: 0.62;
+}
+
+.ab-k {
+  width: 110rpx;
+  flex-shrink: 0;
+  font-size: 25rpx;
+  color: var(--ink-3);
+}
+
+.ab-v {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: var(--ink-1);
+  word-break: break-all;
+}
+
+.ab-v-link {
+  color: var(--brand);
+}
+
+.ab-copy {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: var(--brand);
+  padding: 6rpx 18rpx;
+  border-radius: var(--r-pill);
+  background: var(--brand-soft);
+}
+
+.ab-copyright {
+  display: block;
+  margin-top: 28rpx;
+  font-size: 23rpx;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.ab-note {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 21rpx;
+  line-height: 1.7;
+  color: var(--ink-4);
+  text-align: center;
+}
+
+/* ==================== 脚注 ==================== */
+
+.footnote {
+  text-align: center;
+  padding: 16rpx 0 48rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+}

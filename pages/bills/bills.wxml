@@ -1,0 +1,240 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<view class="page theme-{{theme}}">
+
+  <!-- ==================== 吸顶筛选区 ==================== -->
+  <view class="filter-wrap">
+    <scroll-view scroll-x class="tab-scroll" enhanced show-scrollbar="{{false}}">
+      <view class="tab-track">
+        <view
+          class="tab {{currentTab === item.key ? 'is-active' : ''}}"
+          wx:for="{{timeTabs}}"
+          wx:key="key"
+          bindtap="switchTimeTab"
+          data-key="{{item.key}}"
+        >{{item.label}}</view>
+      </view>
+    </scroll-view>
+
+    <view class="sub-bar">
+      <view class="type-seg">
+        <view
+          class="type-item {{typeFilter === 'all' ? 'is-on' : ''}}"
+          bindtap="switchType"
+          data-type="all"
+        >全部</view>
+        <view
+          class="type-item {{typeFilter === 'income' ? 'is-on is-income' : ''}}"
+          bindtap="switchType"
+          data-type="income"
+        >收入</view>
+        <view
+          class="type-item {{typeFilter === 'expense' ? 'is-on is-expense' : ''}}"
+          bindtap="switchType"
+          data-type="expense"
+        >支出</view>
+      </view>
+
+      <view class="cat-btn {{currentCategory ? 'is-on' : ''}}" bindtap="showCategoryPicker">
+        <text class="cat-btn-text">{{currentCategoryName || '全部分类'}}</text>
+        <text class="cat-btn-arrow">▾</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 汇总 ==================== -->
+  <view class="summary" wx:if="{{totalCount > 0}}">
+    <view class="sum-col">
+      <text class="sum-label">笔数</text>
+      <text class="sum-value num">{{totalCount}}</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-col">
+      <text class="sum-label">收入</text>
+      <text class="sum-value num amount-income">{{fmt.amount(totalIncome)}}</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-col">
+      <text class="sum-label">支出</text>
+      <text class="sum-value num amount-expense">{{fmt.amount(totalExpense)}}</text>
+    </view>
+  </view>
+
+  <!-- ==================== 骨架屏 ====================
+       首次加载显示；切换筛选条件（列表被清空、正在重新取）时也显示 ——
+       否则那一段时间里区块是空的，而下方又同时挂着"没有账单记录"，
+       看起来像刚查过一遍、真的没数据。
+       上拉翻页时不显示：那时 groupedBills 非空，列表要一直在，不能闪成骨架。 -->
+  <view class="card sk-card" wx:if="{{!firstLoaded || (loading && groupedBills.length === 0)}}">
+    <view class="sk-row" wx:for="{{[1,2,3,4]}}" wx:key="*this">
+      <view class="skeleton sk-circle"></view>
+      <view class="sk-lines">
+        <view class="skeleton sk-line mid"></view>
+        <view class="skeleton sk-line short"></view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 账单列表 ==================== -->
+  <view class="bill-list" wx:if="{{groupedBills.length > 0}}">
+    <block wx:for="{{groupedBills}}" wx:key="dayKey">
+      <view class="date-header" style="top: {{stickyTop}}px;">
+        <view class="date-left">
+          <text class="date-text">{{item.date}}</text>
+          <text class="date-week">{{item.weekday}}</text>
+        </view>
+        <text class="date-sum num">
+          <text wx:if="{{item.income > 0}}" class="d-in">+{{fmt.amount(item.income)}}</text>
+          <text wx:if="{{item.expense > 0}}" class="d-ex">-{{fmt.amount(item.expense)}}</text>
+        </text>
+      </view>
+
+      <view class="group-card">
+        <bill-card
+          wx:for="{{item.bills}}"
+          wx:for-item="bill"
+          wx:for-index="bi"
+          wx:key="_id"
+          bill="{{bill}}"
+          show-date="{{true}}"
+          time-mode="datetime"
+          swipeable="{{true}}"
+          force-close="{{swipeOpenId !== '' && swipeOpenId !== bill._id}}"
+          show-border="{{bi !== item.bills.length - 1}}"
+          bind:tap="onBillTap"
+          bind:delete="onBillDelete"
+          bind:swipeopen="onBillSwipeOpen"
+          bind:swipeclose="onBillSwipeClose"
+        />
+      </view>
+    </block>
+  </view>
+
+  <!-- ==================== 空状态 ====================
+       ⚠️ 必须带 !loading：切换筛选条件的那一刻列表是空的、请求还在路上，
+          少了这个判断会在加载期间立刻喊「这个条件下没有账单记录」，
+          然后数据回来又消失 —— 一次"查不到数据"的假象。
+       ⚠️ 也必须带 !loadFailed：请求失败时如实说失败，
+          摆一句「没有账单记录」会让人以为自己刚查过、确实没数据。 -->
+  <view class="empty-state" wx:if="{{firstLoaded && !loading && !loadFailed && bills.length === 0}}">
+    <image class="empty-icon" src="/assets/icons/empty-bill.png" mode="aspectFit" />
+    <text class="empty-text">这个条件下没有账单记录</text>
+    <view class="empty-action">
+      <button class="btn-primary btn-sm" bindtap="goToAddBill">记一笔</button>
+      <button class="btn-ghost btn-sm" bindtap="goToImport">导入账单</button>
+    </view>
+  </view>
+
+  <!-- ==================== 加载失败 ==================== -->
+  <view class="empty-state" wx:if="{{firstLoaded && !loading && loadFailed}}">
+    <image class="empty-icon" src="/assets/icons/empty-bill.png" mode="aspectFit" />
+    <text class="empty-text">账单加载失败</text>
+    <text class="empty-text">检查网络后重试，数据仍在云端</text>
+    <view class="empty-action">
+      <button class="btn-outline btn-sm" bindtap="reloadBills">重试</button>
+    </view>
+  </view>
+
+  <!-- ==================== 底部提示 ==================== -->
+  <view class="list-foot" wx:if="{{bills.length > 0}}">
+    <text wx:if="{{loading}}">加载中…</text>
+    <text wx:elif="{{hasMore}}">上拉加载更多</text>
+    <text wx:else>已显示全部 {{totalCount}} 条</text>
+  </view>
+
+  <!-- ==================== 悬浮记账按钮 ==================== -->
+  <view class="fab" bindtap="goToAddBill" hover-class="fab-hover" hover-stay-time="60">
+    <text class="fab-plus">+</text>
+  </view>
+
+</view>
+
+<!-- ==================== 分类选择弹层 ==================== -->
+<view class="sheet-mask" wx:if="{{showPicker}}" bindtap="hideCategoryPicker"></view>
+<view class="sheet" wx:if="{{showPicker}}">
+  <view class="sheet-grip"></view>
+  <view class="sheet-head">
+    <text class="sheet-title">选择分类</text>
+    <view class="sheet-close" bindtap="hideCategoryPicker">✕</view>
+  </view>
+  <!-- scroll-view 必须拿到确定高度才会滚动，这里给固定的视口比例 -->
+  <scroll-view scroll-y class="sheet-body" style="height: 56vh;">
+    <view
+      class="cat-row {{!currentCategory ? 'is-on' : ''}}"
+      bindtap="selectCategory"
+      data-id=""
+      data-name=""
+    >
+      <text class="cat-emoji">🗂️</text>
+      <text class="cat-name">全部分类</text>
+      <text class="cat-check" wx:if="{{!currentCategory}}">✓</text>
+    </view>
+
+    <view class="cat-group">支出</view>
+    <view
+      class="cat-row {{currentCategory === item.id ? 'is-on' : ''}}"
+      wx:for="{{expenseCategories}}"
+      wx:key="id"
+      bindtap="selectCategory"
+      data-id="{{item.id}}"
+      data-name="{{item.name}}"
+    >
+      <text class="cat-emoji">{{item.icon}}</text>
+      <text class="cat-name">{{item.name}}</text>
+      <text class="cat-check" wx:if="{{currentCategory === item.id}}">✓</text>
+    </view>
+
+    <view class="cat-group">收入</view>
+    <view
+      class="cat-row {{currentCategory === item.id ? 'is-on' : ''}}"
+      wx:for="{{incomeCategories}}"
+      wx:key="id"
+      bindtap="selectCategory"
+      data-id="{{item.id}}"
+      data-name="{{item.name}}"
+    >
+      <text class="cat-emoji">{{item.icon}}</text>
+      <text class="cat-name">{{item.name}}</text>
+      <text class="cat-check" wx:if="{{currentCategory === item.id}}">✓</text>
+    </view>
+  </scroll-view>
+</view>
+
+<!-- ==================== 账单详情弹层 ==================== -->
+<view class="sheet-mask" wx:if="{{showDetail}}" bindtap="hideDetail"></view>
+<view class="sheet" wx:if="{{showDetail}}">
+  <view class="sheet-grip"></view>
+  <view class="sheet-head">
+    <text class="sheet-title">账单详情</text>
+    <view class="sheet-close" bindtap="hideDetail">✕</view>
+  </view>
+
+  <view class="sheet-body">
+    <view class="detail-hero">
+      <view class="detail-icon" style="background: {{detailBill.color || '#2B5CE6'}}1F;">
+        <text class="detail-emoji">{{detailBill.icon || '📝'}}</text>
+      </view>
+      <text class="detail-title">{{detailBill.title || '—'}}</text>
+      <text class="detail-amount num {{detailBill.type === 'income' ? 'amount-income' : 'amount-expense'}}">
+        {{detailBill.type === 'income' ? '+' : '-'}}¥{{fmt.amount(detailBill.amount)}}
+      </text>
+    </view>
+
+    <view class="detail-list">
+      <view class="detail-row" wx:for="{{detailRows}}" wx:key="k">
+        <text class="dr-key">{{item.k}}</text>
+        <text class="dr-val num {{item.cls}} {{item.mono ? 'is-mono' : ''}}">{{item.v}}</text>
+      </view>
+    </view>
+
+    <view class="detail-actions">
+      <button
+        class="btn-ghost detail-btn"
+        wx:if="{{detailBill.orderNo}}"
+        bindtap="copyOrderNo"
+      >复制单号</button>
+      <button class="btn-outline detail-btn" bindtap="editDetailBill">编辑</button>
+      <button class="btn-danger detail-btn" bindtap="deleteDetailBill">删除记录</button>
+    </view>
+  </view>
+</view>

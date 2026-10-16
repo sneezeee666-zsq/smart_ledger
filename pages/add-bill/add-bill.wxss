@@ -1,0 +1,231 @@
+/* ==========================================================================
+   手动记账页
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  padding: 24rpx 24rpx 220rpx;
+  box-sizing: border-box;
+}
+
+/* ==================== 收/支 + 金额 ==================== */
+
+.amount-card {
+  padding: 28rpx 28rpx 24rpx;
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  margin-top: 28rpx;
+  padding-bottom: 14rpx;
+  border-bottom: 2rpx solid var(--line-strong);
+}
+
+.amount-cur {
+  font-size: 46rpx;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-right: 12rpx;
+}
+
+.amount-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 66rpx;
+  font-weight: 700;
+  color: var(--ink-1);
+  height: 92rpx;
+  line-height: 92rpx;
+}
+
+.amount-ph {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+
+.amount-clear {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* --- 分类预览 --- */
+
+.cat-preview {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-top: 22rpx;
+  font-size: 26rpx;
+}
+
+.cat-preview.is-hint .cat-label {
+  color: var(--ink-4);
+  font-size: 24rpx;
+}
+
+.cat-icon {
+  font-size: 32rpx;
+  line-height: 1;
+}
+
+.cat-label {
+  color: var(--ink-3);
+  font-size: 24rpx;
+}
+
+.cat-name {
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 27rpx;
+}
+
+/* ==================== 表单 ==================== */
+
+.form-block {
+  margin-bottom: 8rpx;
+}
+
+.form-block .form-label {
+  display: block;
+  font-size: 25rpx;
+  color: var(--ink-3);
+  margin-bottom: 16rpx;
+}
+
+.form-label {
+  font-size: 28rpx;
+  color: var(--ink-2);
+}
+
+/* --- 交易时间 --- */
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
+}
+
+.picker-pill {
+  background: var(--brand-soft);
+  color: var(--brand);
+  border-radius: var(--r-sm);
+  padding: 14rpx 24rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.now-pill {
+  margin-left: auto;
+  border: 2rpx solid var(--brand);
+  color: var(--brand);
+  border-radius: var(--r-pill);
+  padding: 10rpx 28rpx;
+  font-size: 24rpx;
+}
+
+.now-pill-hover {
+  background: var(--brand-soft);
+}
+
+/* --- 通用行：左标签 + 右控件 --- */
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 100rpx;
+  padding: 0 4rpx;
+  border-bottom: 1rpx solid var(--line);
+  border-radius: var(--r-sm);
+  transition: background 0.15s ease;
+}
+
+.form-row.is-focus {
+  background: var(--surface-3);
+}
+
+.form-row-last {
+  border-bottom: none;
+}
+
+.form-input {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 28rpx;
+  color: var(--ink-1);
+  margin-left: 24rpx;
+}
+
+.input-ph {
+  color: var(--ink-4);
+}
+
+.picker-value {
+  display: flex;
+  align-items: center;
+  padding-left: 24rpx;
+  font-size: 28rpx;
+  color: var(--ink-1);
+}
+
+.picker-arrow {
+  margin-left: 8rpx;
+  color: var(--ink-3);
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+/* ==================== 底部 ==================== */
+
+.tip {
+  text-align: center;
+  font-size: 23rpx;
+  color: var(--ink-4);
+  padding: 8rpx 0 24rpx;
+}
+
+.footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20rpx 32rpx;
+  padding-bottom: calc(20rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.94);
+  border-top: 1rpx solid var(--line);
+}
+
+.save-btn {
+  background: var(--brand);
+  color: #fff;
+  border-radius: var(--r-pill);
+  font-size: 32rpx;
+  font-weight: 500;
+  height: 92rpx;
+  line-height: 92rpx;
+  border: none;
+  box-shadow: var(--sh-brand);
+}
+
+.save-btn::after {
+  border: none;
+}
+
+.save-btn.is-saving,
+.save-btn[disabled] {
+  background: var(--line-strong);
+  color: #fff;
+  box-shadow: none;
+}

@@ -1,0 +1,600 @@
+/* 导入账单页样式 */
+
+/* ⚠️ 本页是 navigationStyle: custom（自绘导航栏），**必须**用通栏容器：
+   全局 .container 带 padding: 24rpx，会把导航栏左右和上方各顶出 24rpx，
+   露出页面底色 —— 看上去就是一圈「白边」。内容间距改由各区块自己负责。 */
+.import-page {
+  min-height: 100vh;
+  background: var(--surface-2);
+  padding: 0;
+  padding-bottom: 40rpx;
+  padding-bottom: calc(40rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+/* 导航栏（本页是自定义导航，要自己盖住状态栏） */
+.nav-bar {
+  background: var(--nav-grad);
+  padding-left: 20rpx;
+  padding-right: 20rpx;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 88rpx;
+}
+
+.nav-back {
+  color: white;
+  font-size: 30rpx;
+  width: 100rpx;
+}
+
+.nav-title {
+  color: white;
+  font-size: 34rpx;
+  font-weight: 500;
+}
+
+/* 步骤指示器 */
+.steps {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40rpx 60rpx;
+  background: var(--surface);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.step-num {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink-3);
+  font-size: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+/* 当前步：描边；已完成：实心。
+   之所以不用「当前=品牌色 / 已完成=绿色」——主题默认色就是绿色，
+   两个状态会变成同一种绿，看不出区别。 */
+.step.active .step-num {
+  background: var(--surface);
+  color: var(--brand);
+  border: 2rpx solid var(--brand);
+}
+
+.step.done .step-num {
+  background: var(--brand);
+  color: #fff;
+  border: 2rpx solid var(--brand);
+}
+
+.step-text {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.step.active .step-text,
+.step.done .step-text {
+  color: var(--brand);
+}
+
+.step-line {
+  width: 80rpx;
+  height: 4rpx;
+  background: var(--line);
+  margin: 0 16rpx;
+  margin-bottom: 24rpx;
+  border-radius: 2rpx;
+  transition: all 0.3s;
+}
+
+.step-line.done {
+  background: var(--brand);
+}
+
+/* 步骤内容 */
+.step-content {
+  padding: 24rpx;
+}
+
+/* 上传卡片 */
+.upload-card {
+  margin-bottom: 24rpx;
+}
+
+.upload-area {
+  border: 2rpx dashed var(--brand);
+  border-radius: var(--r-lg);
+  padding: 60rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16rpx;
+  background: var(--brand-soft);
+}
+
+.upload-area-hover {
+  background: var(--brand-soft-2);
+}
+
+.upload-icon {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 34rpx;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--sh-brand-soft);
+}
+
+.upload-icon-img {
+  width: 56rpx;
+  height: 56rpx;
+}
+
+.upload-title {
+  font-size: 30rpx;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.upload-hint {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+/* 文件信息 */
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-top: 24rpx;
+  padding: 20rpx;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+}
+
+/* 文件类型徽标：用橙色系，避免和绿色的「导入成功」语义色撞在一起 */
+.file-badge {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 0.5rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-detail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.file-name {
+  font-size: 26rpx;
+  color: var(--ink-1);
+}
+
+.file-size {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.file-remove {
+  font-size: 28rpx;
+  color: var(--ink-3);
+  padding: 10rpx;
+  flex-shrink: 0;
+}
+
+/* 引导说明 */
+.guide-card {
+  margin-bottom: 24rpx;
+}
+
+.guide-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: var(--ink-1);
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.guide-step {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  font-size: 26rpx;
+  color: var(--ink-2);
+}
+
+.step-num-circle {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: var(--brand);
+  color: white;
+  font-size: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 按钮 */
+.btn-large {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: 32rpx;
+  border-radius: 44rpx;
+}
+
+.btn-group {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.btn-group button {
+  flex: 1;
+}
+
+.btn-import {
+  background: var(--brand-grad);
+}
+
+.btn-group-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 32rpx;
+}
+
+/* 预览卡片 */
+.preview-card {
+  /* 样式 */
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.preview-title {
+  font-size: 30rpx;
+  font-weight: 500;
+}
+
+.preview-count {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+/* 解析统计 */
+.parse-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+  padding: 20rpx;
+  background: var(--surface-2);
+  border-radius: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.parse-summary .summary-item {
+  text-align: center;
+}
+
+.s-label {
+  display: block;
+  font-size: 22rpx;
+  color: var(--ink-3);
+  margin-bottom: 6rpx;
+}
+
+.s-value {
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.s-value.income {
+  color: var(--income);
+}
+
+.s-value.expense {
+  color: var(--expense);
+}
+
+/* 预览列表 */
+.preview-list {
+  max-height: 600rpx;
+  border: 1rpx solid var(--line);
+  border-radius: 12rpx;
+}
+
+.preview-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx 16rpx;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.preview-row:last-child {
+  border-bottom: none;
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.row-sub {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.row-time {
+  font-size: 22rpx;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.row-title {
+  font-size: 26rpx;
+  color: var(--ink-1);
+}
+
+.row-category {
+  flex-shrink: 0;
+}
+
+.row-amount {
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 确认卡片 */
+.confirm-card {
+  text-align: center;
+}
+
+/* 统一的「完成」圆形对勾（替代 emoji，避免各端观感不一致） */
+.check-mark {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 50%;
+  background: var(--expense-soft);
+  color: var(--expense);
+  font-size: 44rpx;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20rpx;
+}
+
+.check-mark.check-lg {
+  width: 140rpx;
+  height: 140rpx;
+  font-size: 72rpx;
+  margin-bottom: 28rpx;
+}
+
+.confirm-title {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+  margin-bottom: 24rpx;
+}
+
+.confirm-list {
+  text-align: left;
+  margin-bottom: 24rpx;
+}
+
+.confirm-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.confirm-item:last-child {
+  border-bottom: none;
+}
+
+.confirm-label {
+  font-size: 26rpx;
+  color: var(--ink-2);
+}
+
+.confirm-value {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.confirm-notice {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 16rpx 20rpx;
+  background: var(--amber-soft);
+  border-radius: var(--r-sm);
+  margin-top: 20rpx;
+}
+
+.notice-dot {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background: var(--amber);
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notice-text {
+  flex: 1;
+  font-size: 24rpx;
+  color: #A0660A;
+  line-height: 1.5;
+}
+
+/* 成功页面 */
+.success-card {
+  text-align: center;
+  padding: 60rpx 40rpx;
+}
+
+.success-title {
+  display: block;
+  font-size: 38rpx;
+  font-weight: 700;
+  color: var(--expense);
+  margin-bottom: 12rpx;
+}
+
+.success-desc {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  margin-bottom: 40rpx;
+  line-height: 1.6;
+}
+
+.success-stats {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 40rpx;
+  padding: 30rpx;
+  background: var(--surface-3);
+  border-radius: var(--r-lg);
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.stat-label {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.stat-divider {
+  width: 1rpx;
+  height: 50rpx;
+  background: var(--line);
+}
+
+/* ===== 去重结果条 ===== */
+.dedup-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin: 24rpx 0 12rpx;
+  padding: 24rpx 16rpx;
+  background: var(--surface-3);
+  border-radius: var(--r-lg);
+}
+
+.dedup-item {
+  flex: 1;
+  text-align: center;
+}
+
+.dedup-num {
+  display: block;
+  font-size: 38rpx;
+  font-weight: 700;
+  color: var(--ink-1);
+  margin-bottom: 8rpx;
+}
+
+.dedup-num.new {
+  color: var(--brand);
+}
+
+.dedup-num.dup {
+  color: var(--amber);
+}
+
+.dedup-label {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.dedup-divider {
+  width: 1rpx;
+  height: 48rpx;
+  background: var(--line-strong);
+}
+
+.dedup-tip {
+  display: block;
+  font-size: 22rpx;
+  color: var(--ink-3);
+  text-align: center;
+  line-height: 1.6;
+}

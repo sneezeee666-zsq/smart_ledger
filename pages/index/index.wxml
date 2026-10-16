@@ -1,0 +1,191 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<view class="container-flush theme-{{theme}}">
+
+  <!-- ==================== 顶部概览 ==================== -->
+  <view class="hero">
+    <view class="hero-glow hero-glow-a"></view>
+    <view class="hero-glow hero-glow-b"></view>
+
+    <view class="hero-top">
+      <view class="hero-greet">
+        <text class="hero-hi">{{greeting}}</text>
+        <text class="hero-date">{{dateText}}</text>
+      </view>
+      <view class="hero-cta" bindtap="goToAddBill" hover-class="hero-cta-hover" hover-stay-time="60">
+        <text class="hero-cta-plus">+</text>
+        <text>记一笔</text>
+      </view>
+    </view>
+
+    <view class="hero-balance">
+      <text class="hero-balance-label">本月结余</text>
+      <view class="hero-balance-value">
+        <text class="hero-cur">¥</text>
+        <text class="hero-num num">{{fmt.amount(monthData.balance)}}</text>
+      </view>
+    </view>
+
+    <view class="hero-chips">
+      <view class="chip">
+        <text class="chip-label">本月收入</text>
+        <text class="chip-value num on-income">{{fmt.amount(monthData.income)}}</text>
+      </view>
+      <view class="chip">
+        <text class="chip-label">本月支出</text>
+        <text class="chip-value num on-expense">{{fmt.amount(monthData.expense)}}</text>
+      </view>
+    </view>
+
+    <!-- 预算进度：只读过预算才出现。
+         ⚠️ 未设预算时整块不渲染，绝不显示一条 0/0 的进度条 ——
+            那看起来像"额度已经用光"，用户会以为坏了（配置缺失 ≠ 额度用尽）。
+         放在 hero 里而不是另起一张卡：「今天还能花多少」是记账产品里最该被
+         一眼看到的数字，而且不用把下方的卡片整体往下挤。 -->
+    <view
+      class="hero-budget"
+      wx:if="{{budget}}"
+      bindtap="goToBudget"
+      hover-class="hero-budget-hover"
+      hover-stay-time="60"
+    >
+      <view class="hb-head">
+        <text class="hb-label">每月预算</text>
+        <text class="hb-num num">{{fmt.amount(budget.spent)}} / {{fmt.amount(budget.amount)}}</text>
+      </view>
+
+      <view class="hb-track">
+        <view class="hb-fill hb-fill-{{budget.level}}" style="width: {{budget.barPercent}}%;"></view>
+      </view>
+
+      <!-- 分档靠这句话说清，颜色只是辅助。
+           ⚠️ 这里用暖琥珀而不是红色：同一张 hero 卡上的红色是「收入」的意思，
+              两种红色表示相反的事，谁也分不清。 -->
+      <view class="hb-foot">
+        <block wx:if="{{budget.level === 'over'}}">
+          <text class="hb-warn">已超出 {{fmt.amount(budget.over)}} 元</text>
+          <text class="hb-dim">还剩 {{budget.daysLeft}} 天</text>
+        </block>
+        <block wx:else>
+          <text class="hb-dim">还能花 <text class="hb-em">{{fmt.amount(budget.remaining)}}</text> 元</text>
+          <!-- 把分母（剩余天数）一起写出来，用户能自己核对「剩余 ÷ 天数 = 每天可用」 -->
+          <text class="hb-dim" wx:if="{{budget.dailyLeft !== null}}">剩 {{budget.daysLeft}} 天 · 每天 {{fmt.amount(budget.dailyLeft)}} 元</text>
+        </block>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 快捷入口 ==================== -->
+  <view class="quick-actions">
+    <view class="action-item" bindtap="goToImport" hover-class="action-hover" hover-stay-time="60">
+      <view class="action-icon act-import">
+        <image class="action-img" src="/assets/icons/qa-import.png" mode="aspectFit" />
+      </view>
+      <text class="action-text">导入账单</text>
+    </view>
+
+    <view class="action-item" bindtap="goToAddBill" hover-class="action-hover" hover-stay-time="60">
+      <view class="action-icon act-add">
+        <image class="action-img" src="/assets/icons/qa-add.png" mode="aspectFit" />
+      </view>
+      <text class="action-text">记一笔</text>
+    </view>
+
+    <view class="action-item" bindtap="goToBudget" hover-class="action-hover" hover-stay-time="60">
+      <view class="action-icon act-budget">
+        <image class="action-img" src="/assets/icons/qa-budget.png" mode="aspectFit" />
+      </view>
+      <text class="action-text">预算管理</text>
+    </view>
+  </view>
+
+  <!-- ==================== 近 7 天趋势 ==================== -->
+  <view class="card sec">
+    <view class="card-head">
+      <text class="card-title">近 7 天</text>
+      <text class="more-link" bindtap="goToStats">统计详情</text>
+    </view>
+
+    <block wx:if="{{weekTrend.length > 0}}">
+      <!-- 选中日明细：点击柱子可切换 -->
+      <view class="trend-tip" wx:if="{{trendTip}}">
+        <text class="trend-tip-day">{{trendTip.label}}</text>
+        <view class="trend-tip-item">
+          <view class="dot dot-income"></view>
+          <text class="trend-tip-label">收入</text>
+          <text class="trend-tip-val num ti-income">{{fmt.amount(trendTip.income)}}</text>
+        </view>
+        <view class="trend-tip-item">
+          <view class="dot dot-expense"></view>
+          <text class="trend-tip-label">支出</text>
+          <text class="trend-tip-val num ti-expense">{{fmt.amount(trendTip.expense)}}</text>
+        </view>
+      </view>
+
+      <view class="trend-chart">
+        <view
+          class="bar-day {{trendIndex === index ? 'is-active' : ''}}"
+          wx:for="{{weekTrend}}"
+          wx:key="date"
+          data-index="{{index}}"
+          bindtap="onTrendTap"
+        >
+          <view class="bar-group">
+            <view class="bar bar-income" style="height: {{item.incomeHeight}}rpx;"></view>
+            <view class="bar bar-expense" style="height: {{item.expenseHeight}}rpx;"></view>
+          </view>
+          <text class="bar-label num">{{item.day}}</text>
+        </view>
+      </view>
+    </block>
+
+    <view class="empty-state" wx:else>
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">还没有最近 7 天的账单</text>
+    </view>
+  </view>
+
+  <!-- ==================== 最近交易 ==================== -->
+  <view class="card sec">
+    <view class="card-head">
+      <text class="card-title">最近交易</text>
+      <text class="more-link" wx:if="{{recentBills.length > 0}}" bindtap="goToBills">全部</text>
+    </view>
+
+    <!-- 骨架屏：首次加载时避免空白闪烁 -->
+    <view wx:if="{{!firstLoaded}}" class="sk-list">
+      <view class="sk-row" wx:for="{{[1,2,3]}}" wx:key="*this">
+        <view class="skeleton sk-circle"></view>
+        <view class="sk-lines">
+          <view class="skeleton sk-line mid"></view>
+          <view class="skeleton sk-line short"></view>
+        </view>
+      </view>
+    </view>
+
+    <view class="bill-list" wx:elif="{{recentBills.length > 0}}">
+      <bill-card
+        wx:for="{{recentBills}}"
+        wx:key="_id"
+        bill="{{item}}"
+        compact="{{true}}"
+        show-border="{{index !== recentBills.length - 1}}"
+        bind:tap="onBillTap"
+      />
+    </view>
+
+    <view class="empty-state" wx:else>
+      <image class="empty-icon" src="/assets/icons/empty-inbox.png" mode="aspectFit" />
+      <text class="empty-text">还没有账单记录</text>
+      <text class="empty-text">导入微信账单或手动记一笔试试</text>
+      <view class="empty-action">
+        <button class="btn-primary btn-sm" bindtap="goToImport">导入微信账单</button>
+        <button class="btn-ghost btn-sm" bindtap="goToAddBill">手动记账</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 删除账单一律从「账单」页进入：列表左滑、或点开单笔详情后的红色按钮。
+       首页不再放删除入口 —— 首页是"看数"的地方，放破坏性动作容易被误触。 -->
+
+</view>

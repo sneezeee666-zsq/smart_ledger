@@ -1,0 +1,138 @@
+<view class="page theme-{{theme}}">
+
+  <!-- ==================== 收/支 + 金额 ==================== -->
+  <view class="card amount-card">
+    <view class="seg">
+      <view
+        class="seg-item {{type === 'expense' ? 'active is-expense' : ''}}"
+        data-type="expense"
+        bindtap="onTypeChange"
+      >支出</view>
+      <view
+        class="seg-item {{type === 'income' ? 'active is-income' : ''}}"
+        data-type="income"
+        bindtap="onTypeChange"
+      >收入</view>
+    </view>
+
+    <view class="amount-row">
+      <text class="amount-cur">¥</text>
+      <input
+        class="amount-input num"
+        type="digit"
+        value="{{amount}}"
+        placeholder="0.00"
+        placeholder-class="amount-ph"
+        bindinput="onAmountInput"
+      />
+      <view class="amount-clear" wx:if="{{amount}}" bindtap="clearAmount">✕</view>
+    </view>
+
+    <view class="cat-preview" wx:if="{{categoryPreview}}">
+      <text class="cat-icon">{{categoryPreview.icon}}</text>
+      <text class="cat-label">将归类到</text>
+      <text class="cat-name">{{categoryPreview.name}}</text>
+    </view>
+    <view class="cat-preview is-hint" wx:elif="{{classifying}}">
+      <text class="cat-label">正在识别分类…</text>
+    </view>
+    <view class="cat-preview is-hint" wx:else>
+      <text class="cat-label">填写「交易对方」或「商品」后自动识别分类</text>
+    </view>
+  </view>
+
+  <!-- ==================== 交易信息 ==================== -->
+  <view class="card">
+    <text class="card-title">交易信息</text>
+
+    <view class="form-block">
+      <text class="form-label">交易时间</text>
+      <view class="time-row">
+        <picker mode="date" value="{{date}}" end="{{maxDate}}" bindchange="onDateChange">
+          <view class="picker-pill num">{{date}}</view>
+        </picker>
+        <picker mode="time" value="{{time}}" bindchange="onTimeChange">
+          <view class="picker-pill num">{{time}}</view>
+        </picker>
+        <view class="now-pill" bindtap="setNow" hover-class="now-pill-hover" hover-stay-time="60">现在</view>
+      </view>
+    </view>
+
+    <view class="form-row">
+      <text class="form-label">交易类型</text>
+      <picker range="{{tradeTypes}}" value="{{tradeTypeIndex}}" bindchange="onTradeTypeChange">
+        <view class="picker-value">
+          <text>{{tradeTypes[tradeTypeIndex]}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="form-row {{focusField === 'title' ? 'is-focus' : ''}}">
+      <text class="form-label">交易对方</text>
+      <input
+        class="form-input"
+        value="{{title}}"
+        data-field="title"
+        placeholder="如：肯德基、滴滴出行"
+        placeholder-class="input-ph"
+        bindinput="onInput"
+        bindfocus="onFieldFocus"
+        bindblur="onFieldBlur"
+      />
+    </view>
+
+    <view class="form-row form-row-last {{focusField === 'product' ? 'is-focus' : ''}}">
+      <text class="form-label">商品</text>
+      <input
+        class="form-input"
+        value="{{product}}"
+        data-field="product"
+        placeholder="如：早餐、打车费"
+        placeholder-class="input-ph"
+        bindinput="onInput"
+        bindfocus="onFieldFocus"
+        bindblur="onFieldBlur"
+      />
+    </view>
+  </view>
+
+  <!-- ==================== 支付信息 ==================== -->
+  <view class="card">
+    <text class="card-title">支付信息</text>
+
+    <view class="form-row">
+      <text class="form-label">支付方式</text>
+      <picker range="{{payMethods}}" value="{{payMethodIndex}}" bindchange="onPayMethodChange">
+        <view class="picker-value">
+          <text>{{payMethods[payMethodIndex]}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="form-row form-row-last">
+      <text class="form-label">当前状态</text>
+      <picker range="{{statusList}}" value="{{statusIndex}}" bindchange="onStatusChange">
+        <view class="picker-value">
+          <text>{{statusList[statusIndex]}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="tip">
+    <text wx:if="{{isEdit}}">保存后会按新的「交易对方 / 商品」重新识别分类，并同步到统计</text>
+    <text wx:else>手动记录的账单会和导入的微信账单一起参与统计</text>
+  </view>
+
+  <view class="footer">
+    <button
+      class="save-btn {{submitting ? 'is-saving' : ''}}"
+      bindtap="save"
+      disabled="{{submitting || loading}}"
+    >{{submitting ? '保存中…' : (isEdit ? '保存修改' : '保存')}}</button>
+  </view>
+
+</view>

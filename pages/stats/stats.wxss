@@ -1,0 +1,412 @@
+/* ==========================================================================
+   统计分析页
+   ========================================================================== */
+
+/* 切换周期时轻微变暗，保留旧数据避免闪烁 */
+.container.is-loading {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.period-seg {
+  margin-bottom: 20rpx;
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+
+/* ==================== 概览 ==================== */
+
+/* 结余是这一页的主角：用极浅的品牌渐变把它从下面一片白卡里提出来，
+   同时保持深色文字，对比度仍然达标（不是花哨的彩色底）。 */
+.overview {
+  background: linear-gradient(158deg, var(--brand-soft) 0%, var(--surface) 60%);
+  border: 1rpx solid var(--brand-line);
+}
+
+/* 柱状图 / 排行 的分组容器：
+   行间距由 .bar-row / .rank-row 自己负责，这里不再加 margin，避免间距叠加。
+   显式写出来是为了不出现「WXML 用了、样式里查不到」的悬空类名。 */
+.bars,
+.rank-list {
+  display: block;
+}
+
+.ov-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+
+.ov-label {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.ov-range {
+  font-size: 22rpx;
+  color: var(--ink-4);
+}
+
+.ov-balance {
+  display: block;
+  font-size: 60rpx;
+  font-weight: 700;
+  color: var(--ink-1);
+  line-height: 1.2;
+  margin-bottom: 28rpx;
+}
+
+.ov-row {
+  display: flex;
+  align-items: center;
+  padding-top: 24rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.ov-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.ov-mark {
+  width: 8rpx;
+  height: 52rpx;
+  border-radius: 4rpx;
+  flex-shrink: 0;
+}
+
+.mark-income { background: var(--income); }
+.mark-expense { background: var(--expense); }
+
+.ov-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.ov-item-label {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.ov-item-value {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.ov-divider {
+  width: 1rpx;
+  height: 60rpx;
+  background: var(--line);
+  margin: 0 20rpx;
+  flex-shrink: 0;
+}
+
+/* ---------- 日均收支（二级区块） ----------
+   字号比上面的「收入/支出」小一档：总额是当期事实，日均是派生指标，
+   两者一样大反而看不出主次。
+   分母天数放在标题右侧而不是塞进说明文字里，用户一眼能核对。 */
+.ov-avg {
+  margin-top: 24rpx;
+  padding-top: 22rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.ov-avg-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+}
+
+.ov-avg-title {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.ov-avg-days {
+  font-size: 21rpx;
+  color: var(--ink-4);
+}
+
+.ov-avg-row {
+  display: flex;
+  align-items: center;
+}
+
+.ov-avg-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.ov-avg-label {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.ov-avg-value {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+/* 日均这行比上面矮一档，分隔线也跟着收短，视觉上才成一组 */
+.ov-divider-sm {
+  height: 44rpx;
+}
+
+/* ==================== 图表切换按钮 ==================== */
+
+.chart-switch {
+  padding: 6rpx 20rpx;
+  font-size: 23rpx;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: var(--r-pill);
+}
+
+/* ==================== 环形图 ==================== */
+
+.pie-wrap {
+  width: 380rpx;
+  height: 380rpx;
+  margin: 8rpx auto 0;
+}
+
+.pie-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.pie-hint {
+  display: block;
+  text-align: center;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  margin: 4rpx 0 22rpx;
+}
+
+.legend {
+  border-top: 1rpx solid var(--line);
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 12rpx;
+  border-bottom: 1rpx solid var(--line);
+  border-radius: var(--r-sm);
+  transition: background 0.15s ease;
+}
+
+.legend-row.is-on {
+  background: var(--surface-3);
+}
+
+.legend-color {
+  width: 22rpx;
+  height: 22rpx;
+  border-radius: 6rpx;
+  flex-shrink: 0;
+}
+
+.legend-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: var(--ink-1);
+}
+
+.legend-amount {
+  font-size: 26rpx;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+
+.legend-pct {
+  width: 88rpx;
+  text-align: right;
+  font-size: 24rpx;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+/* ==================== 柱状分布 ==================== */
+
+.bar-row {
+  padding: 18rpx 0;
+}
+
+.bar-top {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-bottom: 12rpx;
+}
+
+.bar-icon {
+  font-size: 28rpx;
+  flex-shrink: 0;
+}
+
+.bar-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: var(--ink-1);
+}
+
+.bar-pct {
+  font-size: 22rpx;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.bar-amount {
+  font-size: 25rpx;
+  color: var(--ink-2);
+  flex-shrink: 0;
+  min-width: 110rpx;
+  text-align: right;
+}
+
+.bar-track {
+  height: 16rpx;
+  background: var(--surface-3);
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 8rpx;
+  min-width: 10rpx;
+  transition: width 0.35s ease;
+}
+
+/* ==================== 折线趋势 ==================== */
+
+.line-wrap {
+  width: 100%;
+  height: 380rpx;
+  margin-top: 6rpx;
+}
+
+.line-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.legend-inline {
+  display: flex;
+  gap: 22rpx;
+}
+
+.li {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.li-dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-income { background: var(--income); }
+.dot-expense { background: var(--expense); }
+
+/* ==================== 排行榜 ==================== */
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 0;
+}
+
+.rank-no {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 12rpx;
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 22rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rank-no.is-top {
+  background: linear-gradient(135deg, #F5A524, #E8683A);
+  color: #fff;
+}
+
+.rank-icon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.rank-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 10rpx;
+}
+
+.rank-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: var(--ink-1);
+}
+
+.rank-amount {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+  flex-shrink: 0;
+}
+
+.rank-track {
+  height: 12rpx;
+  background: var(--surface-3);
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+
+.rank-fill {
+  height: 100%;
+  border-radius: 6rpx;
+  min-width: 8rpx;
+  transition: width 0.35s ease;
+}
+
+/* ==================== 脚注 ==================== */
+
+.footnote {
+  text-align: center;
+  padding: 12rpx 0 40rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+}

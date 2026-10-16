@@ -1,0 +1,171 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<view class="container theme-{{theme}} {{loading ? 'is-loading' : ''}}">
+
+  <!-- ==================== 周期切换 ==================== -->
+  <view class="seg period-seg">
+    <view
+      class="seg-item {{currentPeriod === item.key ? 'active' : ''}}"
+      wx:for="{{periods}}"
+      wx:key="key"
+      bindtap="switchPeriod"
+      data-key="{{item.key}}"
+    >{{item.label}}</view>
+  </view>
+
+  <!-- ==================== 概览 ==================== -->
+  <view class="card overview">
+    <view class="ov-head">
+      <text class="ov-label">结余</text>
+      <text class="ov-range">{{currentPeriod === 'week' ? '本周至今' : (currentPeriod === 'year' ? '本年至今' : '本月至今')}}</text>
+    </view>
+
+    <text class="ov-balance num">{{summary.balance >= 0 ? '+' : ''}}{{fmt.amount(summary.balance)}}</text>
+
+    <view class="ov-row">
+      <view class="ov-item">
+        <view class="ov-mark mark-income"></view>
+        <view class="ov-item-text">
+          <text class="ov-item-label">收入</text>
+          <text class="ov-item-value num amount-income">{{fmt.amount(summary.income)}}</text>
+        </view>
+      </view>
+      <view class="ov-divider"></view>
+      <view class="ov-item">
+        <view class="ov-mark mark-expense"></view>
+        <view class="ov-item-text">
+          <text class="ov-item-label">支出</text>
+          <text class="ov-item-value num amount-expense">{{fmt.amount(summary.expense)}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 日均收支：分母（已过天数）必须显式写出来 ——
+         用户能自己用「支出 ÷ 天数」核对，否则这个数字只能靠相信。
+         天数为 0（如 period=all，区间起点无意义）时整块不显示，不摆一个假的 "0 天"。 -->
+    <view class="ov-avg" wx:if="{{days > 0}}">
+      <view class="ov-avg-head">
+        <text class="ov-avg-title">日均收支</text>
+        <text class="ov-avg-days">已过 {{days}} 天</text>
+      </view>
+
+      <view class="ov-avg-row">
+        <view class="ov-avg-item">
+          <text class="ov-avg-label">日均收入</text>
+          <text class="ov-avg-value num amount-income">{{fmt.amount(dailyAvg.income)}}</text>
+        </view>
+        <view class="ov-divider ov-divider-sm"></view>
+        <view class="ov-avg-item">
+          <text class="ov-avg-label">日均支出</text>
+          <text class="ov-avg-value num amount-expense">{{fmt.amount(dailyAvg.expense)}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 支出分布 ==================== -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">支出分布</text>
+      <view class="chart-switch" wx:if="{{categoryStats.length > 0}}" bindtap="toggleChartType">
+        <text>{{chartType === 'pie' ? '柱状' : '环形'}}</text>
+      </view>
+    </view>
+
+    <!-- 环形图 + 可点图例 -->
+    <block wx:if="{{categoryStats.length > 0 && chartType === 'pie'}}">
+      <view class="pie-wrap">
+        <canvas type="2d" id="pieCanvas" class="pie-canvas"></canvas>
+      </view>
+      <text class="pie-hint">点击下方分类可查看单项占比</text>
+
+      <view class="legend">
+        <view
+          class="legend-row {{activeCat === index ? 'is-on' : ''}}"
+          wx:for="{{categoryStats}}"
+          wx:key="id"
+          data-index="{{index}}"
+          bindtap="onLegendTap"
+        >
+          <view class="legend-color" style="background: {{item.color}};"></view>
+          <text class="legend-name text-ellipsis">{{item.name}}</text>
+          <text class="legend-amount num">¥{{fmt.amount(item.amount)}}</text>
+          <text class="legend-pct num">{{item.percent}}%</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- 柱状图 -->
+    <view class="bars" wx:elif="{{categoryStats.length > 0}}">
+      <view class="bar-row" wx:for="{{categoryStats}}" wx:key="id">
+        <view class="bar-top">
+          <text class="bar-icon">{{item.icon || '📝'}}</text>
+          <text class="bar-name text-ellipsis">{{item.name}}</text>
+          <text class="bar-pct num">{{item.percent}}%</text>
+          <text class="bar-amount num">¥{{fmt.amount(item.amount)}}</text>
+        </view>
+        <view class="bar-track">
+          <view class="bar-fill" style="width: {{item.percent}}%; background: {{item.color}};"></view>
+        </view>
+      </view>
+    </view>
+
+    <view class="empty-state" wx:else>
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">这个区间还没有支出记录</text>
+    </view>
+  </view>
+
+  <!-- ==================== 月度趋势 ==================== -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">近 6 个月趋势</text>
+      <view class="legend-inline">
+        <view class="li"><view class="li-dot dot-income"></view><text>收入</text></view>
+        <view class="li"><view class="li-dot dot-expense"></view><text>支出</text></view>
+      </view>
+    </view>
+
+    <view class="line-wrap" wx:if="{{monthlyTrend.length > 0}}">
+      <canvas type="2d" id="lineCanvas" class="line-canvas"></canvas>
+    </view>
+
+    <view class="empty-state" wx:else>
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">暂无趋势数据</text>
+    </view>
+  </view>
+
+  <!-- ==================== 支出排行 ==================== -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">支出排行 TOP5</text>
+    </view>
+
+    <view class="rank-list" wx:if="{{topCategories.length > 0}}">
+      <view class="rank-row" wx:for="{{topCategories}}" wx:key="id">
+        <text class="rank-no num {{index < 3 ? 'is-top' : ''}}">{{index + 1}}</text>
+        <text class="rank-icon">{{item.icon || '📝'}}</text>
+        <view class="rank-main">
+          <view class="rank-line">
+            <text class="rank-name text-ellipsis">{{item.name}}</text>
+            <text class="rank-amount num">¥{{fmt.amount(item.amount)}}</text>
+          </view>
+          <view class="rank-track">
+            <view class="rank-fill" style="width: {{item.ratio}}%; background: {{item.color}};"></view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="empty-state" wx:else>
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">暂无排行数据</text>
+    </view>
+  </view>
+
+  <view class="footnote" wx:if="{{firstLoaded}}">
+    <text>本区间共扫描 {{scanned}} 条记录</text>
+  </view>
+
+</view>

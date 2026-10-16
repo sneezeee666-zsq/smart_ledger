@@ -1,0 +1,246 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<view class="import-page theme-{{theme}}">
+  <!-- 自定义导航栏 -->
+  <view class="nav-bar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="nav-content">
+      <text class="nav-back" bindtap="goBack">‹ 返回</text>
+      <text class="nav-title">导入微信账单</text>
+      <view style="width: 100rpx;"></view>
+    </view>
+  </view>
+
+  <!-- 步骤指示器 -->
+  <view class="steps">
+    <view class="step {{currentStep >= 1 ? 'active' : ''}} {{currentStep > 1 ? 'done' : ''}}">
+      <view class="step-num">1</view>
+      <text class="step-text">上传文件</text>
+    </view>
+    <view class="step-line {{currentStep > 1 ? 'done' : ''}}"></view>
+    <view class="step {{currentStep >= 2 ? 'active' : ''}} {{currentStep > 2 ? 'done' : ''}}">
+      <view class="step-num">2</view>
+      <text class="step-text">解析预览</text>
+    </view>
+    <view class="step-line {{currentStep > 2 ? 'done' : ''}}"></view>
+    <view class="step {{currentStep >= 3 ? 'active' : ''}}">
+      <view class="step-num">3</view>
+      <text class="step-text">确认导入</text>
+    </view>
+  </view>
+
+  <!-- Step 1: 上传文件 -->
+  <view class="step-content" wx:if="{{currentStep === 1}}">
+    <view class="card upload-card">
+      <view class="upload-area" bindtap="chooseFile" hover-class="upload-area-hover" hover-stay-time="60">
+        <view class="upload-icon">
+          <image class="upload-icon-img" src="/assets/icons/qa-import.png" mode="aspectFit" />
+        </view>
+        <text class="upload-title">点击上传微信账单文件</text>
+        <text class="upload-hint">支持 .xlsx / .csv 格式（微信钱包导出）</text>
+      </view>
+
+      <view class="file-info" wx:if="{{fileName}}">
+        <view class="file-badge">{{fileExt}}</view>
+        <view class="file-detail">
+          <text class="file-name text-ellipsis">{{fileName}}</text>
+          <text class="file-size">{{fileSize}}</text>
+        </view>
+        <text class="file-remove" bindtap="removeFile">✕</text>
+      </view>
+    </view>
+
+    <!-- 导入说明 -->
+    <view class="card guide-card">
+      <text class="guide-title">如何获取微信账单？</text>
+      <view class="guide-steps">
+        <view class="guide-step">
+          <text class="step-num-circle">1</text>
+          <text>打开微信 → 我 → 服务 → 钱包</text>
+        </view>
+        <view class="guide-step">
+          <text class="step-num-circle">2</text>
+          <text>点击右上角「账单」</text>
+        </view>
+        <view class="guide-step">
+          <text class="step-num-circle">3</text>
+          <text>点击右上角「...」→ 选择时间范围</text>
+        </view>
+        <view class="guide-step">
+          <text class="step-num-circle">4</text>
+          <text>选择「导出账单」→ 选 Excel 格式 → 保存到手机</text>
+        </view>
+      </view>
+    </view>
+
+    <button 
+      class="btn-primary btn-large" 
+      disabled="{{!fileName || uploading}}"
+      bindtap="parseFile"
+    >
+      {{uploading ? '解析中...' : '下一步：解析文件'}}
+    </button>
+  </view>
+
+  <!-- Step 2: 解析预览 -->
+  <view class="step-content" wx:if="{{currentStep === 2}}">
+    <view class="card preview-card">
+      <view class="preview-header">
+        <text class="preview-title">解析结果预览</text>
+        <text class="preview-count">共 {{parsedData.length}} 条记录</text>
+      </view>
+
+      <!-- 统计概览 -->
+      <view class="parse-summary">
+        <view class="summary-item">
+          <text class="s-label">收入笔数</text>
+          <text class="s-value income">{{incomeCount}} 笔</text>
+        </view>
+        <view class="summary-item">
+          <text class="s-label">支出笔数</text>
+          <text class="s-value expense">{{expenseCount}} 笔</text>
+        </view>
+        <view class="summary-item">
+          <text class="s-label">总收入</text>
+          <text class="s-value income">¥{{fmt.amount(totalIncome)}}</text>
+        </view>
+        <view class="summary-item">
+          <text class="s-label">总支出</text>
+          <text class="s-value expense">¥{{fmt.amount(totalExpense)}}</text>
+        </view>
+      </view>
+
+      <!-- 去重结果 -->
+      <view class="dedup-bar">
+        <view class="dedup-item">
+          <text class="dedup-num new">{{deduping ? '—' : newBills.length}}</text>
+          <text class="dedup-label">本次新增</text>
+        </view>
+        <view class="dedup-divider"></view>
+        <view class="dedup-item">
+          <text class="dedup-num dup">{{deduping ? '—' : duplicateCount}}</text>
+          <text class="dedup-label">重复跳过</text>
+        </view>
+        <view class="dedup-divider"></view>
+        <view class="dedup-item">
+          <text class="dedup-num">{{deduping ? '—' : existingCount}}</text>
+          <text class="dedup-label">已有记录</text>
+        </view>
+      </view>
+      <!-- ⚠️ 去重期间不给具体数字：那会儿 newBills 还是未去重的全量，
+           亮一个"本次新增 300"再跳成 12，比"—"更容易让人误判。 -->
+      <text class="dedup-tip">{{deduping ? '正在与已有账单比对，请稍候…' : '已自动按「交易单号」去重，重复记录不会重复导入'}}</text>
+
+      <view class="confirm-notice" wx:if="{{skippedCount > 0}}" style="margin: 12rpx 0;">
+        <view class="notice-dot">!</view>
+        <text class="notice-text">有 {{skippedCount}} 条记录时间无法识别，已跳过（不会用导入时间冒充）</text>
+      </view>
+
+      <!-- 预览列表 -->
+      <scroll-view scroll-y class="preview-list">
+        <view class="preview-row" wx:for="{{previewList}}" wx:key="_idx">
+          <view class="row-main">
+            <text class="row-title text-ellipsis">{{item.title || '—'}}</text>
+            <view class="row-sub">
+              <text class="row-time num">{{item.timeStr || item.time}}</text>
+              <text class="row-category tag {{item.type === 'income' ? 'tag-income' : 'tag-expense'}}">{{item.category}}</text>
+            </view>
+          </view>
+          <text class="row-amount num {{item.type === 'income' ? 'amount-income' : 'amount-expense'}}">
+            {{item.type === 'income' ? '+' : '-'}}{{fmt.amount(item.amount)}}
+          </text>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="btn-group">
+      <button class="btn-outline" bindtap="goBackStep">上一步</button>
+      <!-- 去重没结束不给点：那一刻 newBills 还是未去重的全量，点进去确认
+           就会把重复记录写进库里 -->
+      <button
+        class="btn-primary"
+        disabled="{{deduping}}"
+        bindtap="goToConfirm"
+      >{{deduping ? '正在检查重复…' : '下一步：确认导入'}}</button>
+    </view>
+  </view>
+
+  <!-- Step 3: 确认导入 -->
+  <view class="step-content" wx:if="{{currentStep === 3}}">
+    <view class="card confirm-card">
+      <view class="check-mark">✓</view>
+      <text class="confirm-title">准备导入以下数据</text>
+      
+      <view class="confirm-list">
+        <view class="confirm-item">
+          <text class="confirm-label">原有记录</text>
+          <text class="confirm-value">{{existingCount}} 条</text>
+        </view>
+        <view class="confirm-item">
+          <text class="confirm-label">本次新增</text>
+          <text class="confirm-value amount-income">{{newBills.length}} 条</text>
+        </view>
+        <view class="confirm-item">
+          <text class="confirm-label">重复跳过</text>
+          <text class="confirm-value">{{duplicateCount}} 条</text>
+        </view>
+        <view class="confirm-item">
+          <text class="confirm-label">收入总额</text>
+          <text class="confirm-value amount-income">+{{fmt.amount(totalIncome)}}</text>
+        </view>
+        <view class="confirm-item">
+          <text class="confirm-label">支出总额</text>
+          <text class="confirm-value amount-expense">-{{fmt.amount(totalExpense)}}</text>
+        </view>
+        <view class="confirm-item">
+          <text class="confirm-label">时间范围</text>
+          <text class="confirm-value">{{dateRange}}</text>
+        </view>
+      </view>
+
+      <view class="confirm-notice">
+        <view class="notice-dot">!</view>
+        <text class="notice-text">{{newBills.length > 0 ? '原有数据会保留，仅导入新增记录' : '没有需要导入的新记录，全部为重复数据'}}</text>
+      </view>
+    </view>
+
+    <view class="btn-group">
+      <button class="btn-outline" bindtap="goBackStep">返回修改</button>
+      <button 
+        class="btn-primary btn-import" 
+        disabled="{{importing}}"
+        bindtap="confirmImport"
+      >
+        {{importing ? '导入中...' : (newBills.length > 0 ? '确认导入 ' + newBills.length + ' 条' : '无新增记录')}}
+      </button>
+    </view>
+  </view>
+
+  <!-- 导入成功 -->
+  <view class="step-content" wx:if="{{currentStep === 4}}">
+    <view class="success-card">
+      <view class="check-mark check-lg">✓</view>
+      <text class="success-title">{{importedCount > 0 ? '导入成功' : '没有新记录'}}</text>
+      <text class="success-desc">
+        {{importedCount > 0 ? '已成功导入 ' + importedCount + ' 条新账单' : '所有记录都已存在，未重复导入'}}{{duplicateCount > 0 ? '，跳过重复 ' + duplicateCount + ' 条' : ''}}{{failedCount > 0 ? '，失败 ' + failedCount + ' 条（可再次导入，会按单号去重）' : ''}}
+      </text>
+      
+      <view class="success-stats">
+        <view class="stat-item">
+          <text class="stat-value amount-income">+{{fmt.amount(totalIncome)}}</text>
+          <text class="stat-label">收入</text>
+        </view>
+        <view class="stat-divider"></view>
+        <view class="stat-item">
+          <text class="stat-value amount-expense">-{{fmt.amount(totalExpense)}}</text>
+          <text class="stat-label">支出</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="btn-group-vertical">
+      <button class="btn-primary" bindtap="goToBills">查看账单明细</button>
+      <button class="btn-outline" bindtap="goToStats">查看统计分析</button>
+      <button class="btn-outline" bindtap="reImport">继续导入其他账单</button>
+    </view>
+  </view>
+</view>

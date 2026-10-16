@@ -1,0 +1,23 @@
+# 依赖（本项目当前未使用 npm；写上以防将来引入）
+node_modules/
+miniprogram_npm/
+
+# 开发者工具的本机配置：里面存的是本机路径等机器相关信息，
+# 提交上去对其他人没有意义，还会在换机器时造成无谓的 diff
+project.private.config.json
+
+# 系统垃圾文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志 / 临时 / 备份
+*.log
+*.tmp
+*.bak
+nohup.out
+
+# 离线测试的运行残留：
+# 部分套件会写一个临时副本再删除（如 vip-test 的 index.__viptest.js），
+# 用例中途崩溃时可能留下，不该进版本库
+cloudfunctions/**/__*.js

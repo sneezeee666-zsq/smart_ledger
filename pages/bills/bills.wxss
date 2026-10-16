@@ -1,0 +1,375 @@
+/* ==========================================================================
+   账单明细页
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 60rpx;
+  box-sizing: border-box;
+}
+
+/* ==================== 吸顶筛选区 ==================== */
+
+.filter-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1rpx solid var(--line);
+  padding: 16rpx 0 0;
+}
+
+.tab-scroll {
+  white-space: nowrap;
+}
+
+.tab-track {
+  display: inline-flex;
+  padding: 0 20rpx 16rpx;
+  gap: 10rpx;
+}
+
+.tab {
+  display: inline-block;
+  padding: 12rpx 30rpx;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.tab.is-active {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 500;
+  box-shadow: var(--sh-brand);
+}
+
+/* --- 二级筛选 --- */
+
+.sub-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20rpx 18rpx;
+}
+
+.type-seg {
+  display: flex;
+  gap: 8rpx;
+}
+
+.type-item {
+  padding: 8rpx 24rpx;
+  font-size: 24rpx;
+  color: var(--ink-2);
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.type-item.is-on {
+  background: var(--ink-1);
+  color: #fff;
+}
+
+.type-item.is-on.is-income { background: var(--income); }
+.type-item.is-on.is-expense { background: var(--expense); }
+
+.cat-btn {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  max-width: 300rpx;
+  padding: 8rpx 20rpx;
+  font-size: 24rpx;
+  color: var(--ink-2);
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+}
+
+.cat-btn.is-on {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 500;
+}
+
+.cat-btn-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-btn-arrow {
+  font-size: 18rpx;
+  flex-shrink: 0;
+}
+
+/* ==================== 汇总三列 ==================== */
+
+.summary {
+  display: flex;
+  align-items: center;
+  margin: 20rpx 24rpx;
+  padding: 24rpx 8rpx;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-1);
+}
+
+.sum-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.sum-label {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.sum-value {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sum-line {
+  width: 1rpx;
+  height: 48rpx;
+  background: var(--line);
+  flex-shrink: 0;
+}
+
+/* ==================== 账单列表 ==================== */
+
+.bill-list {
+  padding: 0 24rpx;
+}
+
+.date-header {
+  position: sticky;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 22rpx 8rpx 12rpx;
+  background: var(--surface-2);
+  z-index: 10;
+}
+
+.date-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.date-text {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.date-week {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.date-sum {
+  display: flex;
+  gap: 16rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.d-in { color: var(--income); }
+.d-ex { color: var(--expense); }
+
+.group-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 0 24rpx;
+  box-shadow: var(--sh-1);
+}
+
+/* ==================== 骨架屏 / 底部提示 ==================== */
+
+.sk-card {
+  margin: 0 24rpx 20rpx;
+}
+
+.list-foot {
+  text-align: center;
+  padding: 32rpx 0 40rpx;
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+/* ==================== 悬浮记账按钮 ==================== */
+
+.fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: 40rpx;
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 50%;
+  background: var(--brand-grad);
+  box-shadow: var(--sh-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.fab-hover {
+  transform: scale(0.94);
+}
+
+.fab-plus {
+  color: #fff;
+  font-size: 58rpx;
+  font-weight: 300;
+  line-height: 1;
+  margin-top: -6rpx;
+}
+
+/* ==================== 分类选择 ==================== */
+
+.cat-group {
+  font-size: 22rpx;
+  color: var(--ink-3);
+  padding: 24rpx 0 8rpx;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.cat-row.is-on .cat-name {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.cat-emoji {
+  font-size: 34rpx;
+  width: 44rpx;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.cat-name {
+  flex: 1;
+  font-size: 28rpx;
+  color: var(--ink-1);
+}
+
+.cat-check {
+  color: var(--brand);
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+/* ==================== 账单详情 ==================== */
+
+.detail-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx 0 36rpx;
+}
+
+.detail-icon {
+  width: 108rpx;
+  height: 108rpx;
+  border-radius: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4rpx;
+}
+
+.detail-emoji {
+  font-size: 50rpx;
+  line-height: 1;
+}
+
+.detail-title {
+  font-size: 30rpx;
+  color: var(--ink-1);
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-amount {
+  font-size: 52rpx;
+  font-weight: 700;
+}
+
+.detail-list {
+  border-top: 1rpx solid var(--line);
+}
+
+.detail-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.dr-key {
+  font-size: 26rpx;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.dr-val {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 26rpx;
+  color: var(--ink-1);
+  word-break: break-all;
+}
+
+.dr-val.v-income { color: var(--income); font-weight: 600; }
+.dr-val.v-expense { color: var(--expense); font-weight: 600; }
+
+.dr-val.is-mono {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 23rpx;
+  color: var(--ink-2);
+}
+
+/* 详情弹层底部操作：复制单号（次要）+ 删除记录（危险，红色）
+   两个按钮等宽并排；没有单号时只剩删除按钮，自动占满整行 */
+.detail-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 32rpx;
+}
+
+.detail-btn {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 20rpx;
+  font-size: 28rpx;
+}

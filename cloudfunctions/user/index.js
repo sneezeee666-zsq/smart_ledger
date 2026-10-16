@@ -1,0 +1,472 @@
+// 云函数入口文件 - 用户资料（昵称 / 主题偏好）
+//
+// 为什么这里「没有登录」？
+//   云开发的 openid 由微信在云函数侧隐式提供（cloud.getWXContext().OPENID），
+//   它由微信签名、客户端伪造不了，本身就是一套无感登录。
+//   所以这个云函数不做账号密码，只做「把 user 档案和 openid 对上」这一件事。
+//
+// ⚠️ 集合 users 需要先在云开发控制台手动创建（云函数不会自动建集合）。
+//    没建的话第一次调用会返回一条明确提示，而不是一个看不懂的 -502005。
+const cloud = require('wx-server-sdk')
+const crypto = require('crypto')
+
+cloud.init({
+  env: cloud.DYNAMIC_CURRENT_ENV
+})
+
+const db = cloud.database()
+const _ = db.command
+const USERS = 'users'
+
+// 昵称长度上下限（按 Unicode 字符数）。前端 utils/user.js 有一份同样的常量，
+// tests/static-check.js 会比对两处是否同值 —— 改一处忘另一处会直接报错。
+const NICK_MIN = 2
+const NICK_MAX = 12
+
+// 预算额度上限（元）。与「手动记账」的单笔金额上限同口径 —— 都是"防手滑多打几个 0"，
+// 不是真的要拦住某种合法输入。前端 utils/user.js 有同样的常量，静态检查对账。
+const BUDGET_MAX = 100000000
+// 预算最多保留的小数位：分。多出来的位数直接拒绝而不是四舍五入 ——
+// 用户输入 100.005 时看到的应该是「请检查」，不是悄悄变成 100.01。
+const BUDGET_DECIMALS = 2
+
+// ==================== VIP 会员 ====================
+// 一次性买断、永久有效 —— 不做订阅、不做到期时间。
+// 「会员没有过期」意味着 vip 里只需要一个激活时间，没有"什么时候失效"这个概念，
+// 也就不需要任何定时任务去扫描过期会员（少一类会静默出错的定时逻辑）。
+const VIP_PRICE_FEN = 1800        // ¥18.00，单位是分（与微信支付同单位）
+const VIP_PRODUCT_NAME = '智能账本 · 永久会员'
+
+/**
+ * 支付模式开关。
+ * ⚠️ 'sandbox'：商户号还没接入时的**模拟支付** —— 不收钱、直接激活，
+ *    让「充值 → 解锁」这条链路可以完整走通和测试。
+ *    ⚠️⚠️ 接入真实商户号后必须改成 'wxpay' 并补上支付回调验签：
+ *    真实模式下激活只能由**支付成功回调**（payCallback）触发，
+ *    绝不能相信客户端传来的任何"我付过了"的参数 —— 否则谁都能白嫖会员。
+ */
+const VIP_PAY_MODE = 'sandbox'
+
+// 换行 / 制表 / 其它控制字符：会把布局撑破，看起来还像「空白昵称」
+const NICK_BAD = /[\u0000-\u001F\u007F-\u009F]/
+
+/**
+ * 主题 id 只做**格式**校验，不在这里维护白名单。
+ *
+ * 为什么不维护白名单？那等于在云函数里再造一份「主题清单」，以后加主题时忘了同步，
+ * 新主题就永远存不进去 —— 这种「两处必须一致」的脱节正是本项目反复踩的坑。
+ * 前端 utils/theme.js 的 normalize() 会把不认识的 id 安全回落到默认主题，
+ * 所以服务端放宽到「小写字母开头的短字符串」即可。
+ */
+const THEME_RE = /^[a-z][a-z0-9]{2,15}$/
+
+exports.main = async (event, context) => {
+  try {
+    const openid = cloud.getWXContext().OPENID
+    if (!openid) {
+      return bad('拿不到微信身份（openid），请从微信里重新打开小程序')
+    }
+
+    const action = event && event.action
+
+    if (action === 'updateProfile') {
+      return await updateProfile(openid, event)
+    }
+
+    if (action === 'setBudget') {
+      return await setBudget(openid, event)
+    }
+
+    if (action === 'createVipOrder') {
+      return await createVipOrder(openid)
+    }
+
+    if (action === 'activateVip') {
+      return await activateVip(openid, event)
+    }
+
+    // 不传 action 时按 getProfile 处理：启动时最常用的就是它
+    return await getProfile(openid)
+  } catch (err) {
+    // 兜底：云函数抛异常在客户端看到的是「invoke fail」这种没有信息量的报错，
+    // 统一包成结构化返回，前端才能把原因显示给用户。
+    console.error('user 云函数异常:', err)
+    return bad(describeError(err))
+  }
+}
+
+function bad(message) {
+  return { code: -1, message: message }
+}
+
+// ==================== 读取 / 创建 ====================
+
+/**
+ * 读取当前用户的档案；没有就**自动创建**一条空档案。
+ *
+ * 为什么自动创建：这个应用没有「注册」这一步 —— openid 就是身份。
+ * 首次进入就落一条空档案，后面设昵称 / 换主题都是 UPDATE 而不是 INSERT，
+ * 省掉「先判断存不存在」的分支，也避免了并发下的重复插入。
+ */
+async function getProfile(openid) {
+  const found = await fetchOne(openid)
+  if (found) return { code: 0, data: publicProfile(found) }
+
+  const now = Date.now()
+  const doc = {
+    // ⚠️ 云函数写入**不会**自动注入 _openid，必须显式带上，
+    //    否则这里的 where({ _openid }) 永远查不到自己刚建的档案。
+    _openid: openid,
+    uid: newUid(),
+    nickname: '',
+    theme: '',
+    // 预算额度（每月支出上限）。null = 没设过 —— 界面据此显示"还没有预算"的引导，
+    // 而不是显示一条 0 元的进度条（配置缺失和额度用尽是两件事）。
+    budget: null,
+    createdAt: now,
+    updatedAt: now
+  }
+
+  try {
+    await db.collection(USERS).add({ data: doc })
+  } catch (err) {
+    // 并发下（两个页面同时冷启动）可能已经有一条了 → 再查一次，查到就算成功
+    const retry = await fetchOne(openid)
+    if (retry) return { code: 0, data: publicProfile(retry) }
+    throw err
+  }
+
+  return { code: 0, data: publicProfile(doc) }
+}
+
+async function fetchOne(openid) {
+  const res = await db.collection(USERS).where({ _openid: openid }).limit(1).get()
+  return res && res.data && res.data.length ? res.data[0] : null
+}
+
+/**
+ * 只把前端用得上的字段发出去。
+ * ⚠️ 不返回 _openid：它是这个账号的身份证，客户端并不需要，也没有任何理由外泄。
+ *
+ * budget 存成一个**内嵌对象**（而不是 users 文档下的两个散字段），
+ * 这样"未设置预算"只有一种表示（budget 为 null），不用去判断 amount 缺没缺、
+ * 是不是 0、updateTime 有没有——分散字段一定会有人只更新一半。
+ */
+function publicProfile(doc) {
+  return {
+    uid: doc.uid || '',
+    nickname: typeof doc.nickname === 'string' ? doc.nickname : '',
+    theme: typeof doc.theme === 'string' ? doc.theme : '',
+    budget: readBudget(doc),
+    vip: readVip(doc)
+  }
+}
+
+/**
+ * 归一化库里的 vip 字段。
+ * ⚠️ 与 budget 同一条约定：前端拿到的 vip 要么是 { since }，要么是 null，
+ *    不会是 undefined —— 前端要靠它决定"显示会员权益"还是"显示开通引导"。
+ * 永久会员没有 expire 字段；将来若做订阅制再加，**别提前加** ——
+ * 现在加一个恒为 null 的字段只会让每处读它的人多一个"这算不算过期"的判断。
+ */
+function readVip(doc) {
+  const v = doc && doc.vip
+  if (!v || !v.since) return null
+  const since = Number(v.since)
+  return since > 0 ? { since: since } : null
+}
+
+/** 是否会员（云端权威判断。getStatistics 的 insight 门控也用这个口径） */
+function isVipDoc(doc) {
+  return !!(doc && doc.vip && Number(doc.vip.since) > 0)
+}
+
+/**
+ * 归一化库里的预算字段。
+ * ⚠️ 前端拿到的 budget 要么是 { amount, updateTime }，要么是 null，不会是 undefined ——
+ *    前端要靠它决定"显示进度条"还是"显示空状态"，值不稳定就会闪。
+ */
+function readBudget(doc) {
+  const b = doc && doc.budget
+  if (!b) return null
+
+  const amount = Number(b.amount)
+  if (!(amount > 0)) return null
+
+  return {
+    amount: Math.round(amount * 100) / 100,
+    updateTime: Number(b.updateTime) || 0
+  }
+}
+
+/**
+ * 生成用户主键。
+ *
+ * ⚠️ 为什么不直接拿 openid 当主键？
+ *    现在数据按 openid 隔离，够用。但「同一个人的第二个微信 / 另一台设备看同一份账本」
+ *    这件事一旦要做，openid 就会把一个人劈成两个账号。uid 与 openid 分开存，
+ *    users 表将来只需多挂一个 openids 数组即可平滑扩展，不用迁移这张表。
+ *    （注意：账单表要跟着迁移 —— 那条路线见 README「登录与用户体系」。）
+ */
+function newUid() {
+  return 'u' + crypto.randomBytes(9).toString('hex')
+}
+
+// ==================== 更新 ====================
+
+async function updateProfile(openid, event) {
+  const patch = {}
+
+  if (event.nickname !== undefined) {
+    const r = normalizeNickname(event.nickname)
+    if (!r.ok) return bad(r.message)
+    patch.nickname = r.value
+  }
+
+  if (event.theme !== undefined) {
+    const t = String(event.theme === null || event.theme === undefined ? '' : event.theme).trim()
+    // 空串是合法值：表示「清掉云端偏好」，读回来时前端会保留本机选择
+    if (t && !THEME_RE.test(t)) return bad('主题参数不合法')
+    patch.theme = t
+  }
+
+  if (!Object.keys(patch).length) return bad('没有要更新的内容')
+
+  patch.updatedAt = Date.now()
+
+  // 先确保档案存在：首次进来可能还没建过（用户直接改了主题）
+  const got = await getProfile(openid)
+  if (got.code !== 0) return got
+
+  // ⚠️ 归属条件必须在。云函数以管理员身份执行、会绕过集合权限，
+  //    只按 _id 更新等于把别人的账号开放了（与删除账单是同一类问题）。
+  const res = await db.collection(USERS)
+    .where({ _openid: openid })
+    .update({ data: patch })
+
+  if (!res || !res.stats || !res.stats.updated) {
+    return bad('保存失败，请重试')
+  }
+
+  return {
+    code: 0,
+    data: {
+      uid: got.data.uid,
+      nickname: patch.nickname !== undefined ? patch.nickname : got.data.nickname,
+      theme: patch.theme !== undefined ? patch.theme : got.data.theme,
+      // 改昵称/主题时预算没动，但要**如实回传**：
+      // 前端拿到返回体就整份写进本机缓存，少给一个字段等于顺手把预算抹掉。
+      budget: got.data.budget,
+      // 同理：vip 也要回传。否则用户开完会员改个昵称，本机的会员标识就被抹掉了
+      vip: got.data.vip
+    }
+  }
+}
+
+// ==================== 预算额度 ====================
+
+/**
+ * 设置「每月支出预算」。
+ *
+ * 为什么是**每月一个固定额度**、而不是每个月存一条？
+ *   个人记账的使用习惯是「我每月预算 3000」，而不是「10 月 3200、11 月 2800」。
+ *   按月存一条会逼用户每月 1 号重设一次，忘了就退回"没有预算"状态 ——
+ *   一个需要用户每月维护的预算，本质上等于没有预算。
+ *   所以这里存的是一个长期有效的额度，跨月自动延续；想改随时改。
+ *
+ * 送 amount = 0 / 空串 = 取消预算（把字段整个删掉，而不是留一个 0）。
+ */
+async function setBudget(openid, event) {
+  const r = normalizeBudget(event.amount)
+  if (!r.ok) return bad(r.message)
+
+  // 先确保档案存在：用户完全可能第一次进来就直接设预算
+  const got = await getProfile(openid)
+  if (got.code !== 0) return got
+
+  const now = Date.now()
+  const patch = {
+    // ⚠️ 取消预算要用 remove() 把字段删掉，而不是写 0/null：
+    //    写 null 会让"没有这个字段"和"字段是 null"两种状态并存，
+    //    以后任何一处读它的人都要多写一个判断，迟早有人漏。
+    budget: r.value > 0 ? { amount: r.value, updateTime: now } : _.remove(),
+    updatedAt: now
+  }
+
+  // ⚠️ 归属条件必须在。云函数以管理员身份执行、会绕过集合权限，
+  //    只按 _id 更新等于把所有人的档案对外开放（与删除账单是同一类问题）。
+  const res = await db.collection(USERS)
+    .where({ _openid: openid })
+    .update({ data: patch })
+
+  if (!res || !res.stats || !res.stats.updated) {
+    return bad('保存失败，请重试')
+  }
+
+  return {
+    code: 0,
+    data: {
+      uid: got.data.uid,
+      nickname: got.data.nickname,
+      theme: got.data.theme,
+      budget: r.value > 0 ? { amount: r.value, updateTime: now } : null,
+      vip: got.data.vip
+    }
+  }
+}
+
+// ==================== VIP 会员 ====================
+
+/**
+ * 创建会员订单（充值入口）。
+ *
+ * sandbox 模式（当前）：不接商户号，直接返回"模拟支付成功"，
+ * 由前端调 activateVip 完成激活 —— 让「充值 → 解锁」链路可完整测试。
+ *
+ * wxpay 模式（接入商户号后）：这里应该调微信支付**统一下单**，
+ * 返回 prepay_id 换起 wx.requestPayment；激活只发生在**支付回调**里
+ * （回调验签通过才写 vip 字段）。⚠️ 到那时这个函数里的 sandbox 分支必须删掉。
+ */
+async function createVipOrder(openid) {
+  const got = await getProfile(openid)
+  if (got.code !== 0) return got
+
+  // 已经是会员 → 不再下单（永久会员不存在"续费"）
+  if (got.data.vip) {
+    return { code: 0, data: { alreadyVip: true, vip: got.data.vip } }
+  }
+
+  return {
+    code: 0,
+    data: {
+      mode: VIP_PAY_MODE,
+      alreadyVip: false,
+      order: {
+        productName: VIP_PRODUCT_NAME,
+        priceFen: VIP_PRICE_FEN,
+        createdAt: Date.now()
+      }
+    }
+  }
+}
+
+/**
+ * 激活会员。
+ *
+ * ⚠️ 归属条件必须在：只按 _openid 更新，谁也动不了别人的档案。
+ * ⚠️ 真实支付上线后，本函数只能被**支付成功回调**调用（服务端之间），
+ *    不能直接暴露给客户端按需调用 —— sandbox 阶段才允许前端直接调。
+ */
+async function activateVip(openid, event) {
+  // sandbox 之外的模式：客户端不允许直接激活（防止绕过支付）
+  if (VIP_PAY_MODE !== 'sandbox') {
+    return bad('支付方式未开通，请稍后再试')
+  }
+
+  const got = await getProfile(openid)
+  if (got.code !== 0) return got
+
+  // 幂等：已经是会员就原样返回，不重复写（重复激活会把 since 冲掉）
+  if (got.data.vip) {
+    return { code: 0, data: { uid: got.data.uid, vip: got.data.vip } }
+  }
+
+  const now = Date.now()
+  const vip = { since: now }
+
+  const res = await db.collection(USERS)
+    .where({ _openid: openid })
+    .update({ data: { vip: vip, updatedAt: now } })
+
+  if (!res || !res.stats || !res.stats.updated) {
+    return bad('开通失败，请重试')
+  }
+
+  return {
+    code: 0,
+    data: {
+      uid: got.data.uid,
+      nickname: got.data.nickname,
+      theme: got.data.theme,
+      budget: got.data.budget,
+      vip: vip
+    }
+  }
+}
+
+/**
+ * 预算金额归一化。
+ *
+ * 接受的写法：'3000'、'3000.5'、'3000.50'、'.5'（前端 type="digit" 的键盘
+ * 允许先打小数点）、以及空串/0（= 取消预算）。
+ * 拒绝：负数、0 与空串以外的非数字、超过 2 位小数、超过上限、NaN/Infinity。
+ *
+ * return { ok, value } —— value 为 0 表示"取消预算"
+ */
+function normalizeBudget(raw) {
+  if (raw === null || raw === undefined) return { ok: true, value: 0 }
+
+  let s = String(raw).trim()
+  if (s === '') return { ok: true, value: 0 }
+
+  // 允许 ".5" 这种写法，补一个前导 0 再走下面的正则
+  if (s.charAt(0) === '.') s = '0' + s
+
+  // 负数：显式拦一次。否则 '-5' 会被下面的正则拒掉，
+  // 但用户看到的提示是"格式不对"，而不是更贴切的"预算不能为负数"
+  if (s.charAt(0) === '-') return { ok: false, message: '预算不能为负数' }
+
+  const re = new RegExp('^\\d+(\\.\\d{1,' + BUDGET_DECIMALS + '})?$')
+  if (!re.test(s)) {
+    return { ok: false, message: '预算最多保留 ' + BUDGET_DECIMALS + ' 位小数' }
+  }
+
+  const n = Number(s)
+  if (!isFinite(n)) return { ok: false, message: '预算金额无法识别' }
+  if (n === 0) return { ok: true, value: 0 }
+  if (n > BUDGET_MAX) return { ok: false, message: '预算金额过大，请检查是否输错' }
+
+  return { ok: true, value: Math.round(n * 100) / 100 }
+}
+
+/**
+ * 昵称归一化：去首尾空白（从别处粘贴过来常带空格）、拒控制字符、卡长度。
+ *
+ * ⚠️ 长度按 **Unicode 字符数**（Array.from）算，不能用 .length ——
+ *    '小明'.length 是 2 没问题，但 emoji 与部分生僻字在 UTF-16 里占两个码元，
+ *    用 .length 会把一个字符算成两个，明明没超长却报「最多 12 个字符」。
+ */
+function normalizeNickname(raw) {
+  if (typeof raw !== 'string') return { ok: false, message: '昵称格式不正确' }
+
+  const value = raw.trim()
+
+  // 允许清空：用户在输入框里删干净再保存，语义就是「不设置昵称」
+  if (value === '') return { ok: true, value: '' }
+
+  if (NICK_BAD.test(value)) return { ok: false, message: '昵称里不能有换行或特殊字符' }
+
+  const len = Array.from(value).length
+  if (len < NICK_MIN) return { ok: false, message: '昵称至少 ' + NICK_MIN + ' 个字符' }
+  if (len > NICK_MAX) return { ok: false, message: '昵称最多 ' + NICK_MAX + ' 个字符' }
+
+  return { ok: true, value: value }
+}
+
+/**
+ * 把底层报错翻译成用户能看懂的一句话。
+ * 最值得提前拦的是「集合没建」：这是部署后第一次调用最常见的失败，
+ * 原始报错是 -502005 database collection not exists，对用户毫无指示性。
+ */
+function describeError(err) {
+  const code = err && (err.errCode || err.code)
+  const msg = String((err && (err.errMsg || err.message)) || '')
+
+  if (code === -502005 || msg.indexOf('collection not exists') !== -1 || msg.indexOf('集合不存在') !== -1) {
+    return '数据库里还没有 users 集合，请先在云开发控制台「数据库」里新建它'
+  }
+  if (msg.indexOf('timeout') !== -1 || code === -504003) {
+    return '请求超时，请重试'
+  }
+  return '操作失败：' + (msg || '未知错误')
+}

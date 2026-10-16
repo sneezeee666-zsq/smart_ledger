@@ -1,0 +1,11 @@
+{
+  "navigationBarTitleText": "账单明细",
+  "navigationBarBackgroundColor": "#FFFFFF",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#F2F5FA",
+  "backgroundTextStyle": "dark",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "bill-card": "/components/bill-card/bill-card"
+  }
+}

@@ -1,0 +1,141 @@
+/**
+ * WXML 专用格式化工具（WXS）
+ *
+ * 注意 1：小程序 WXML 不支持 `{{ x | fn }}` 过滤器语法（会被当成按位或运算），
+ *        必须用 WXS 模块来格式化。
+ *
+ * 注意 2：入库的 createTime 是「某个真实时刻」的时间戳，账单本身按北京时间（UTC+8）理解。
+ *        如果直接用 getDate(ts) 再取 getHours()，显示结果会跟随**设备时区**变化
+ *        （跨时区或改系统时区时，账单时间会整体偏移）。
+ *        这里统一显式 +8 小时后用 getUTC* 取值，与云端聚合口径完全一致。
+ */
+
+var BJ_OFFSET = 8 * 60 * 60 * 1000
+var DAY_MS = 24 * 60 * 60 * 1000
+
+var WEEK_DAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+function pad2(n) {
+  return n < 10 ? '0' + n : '' + n
+}
+
+// 该时间戳对应的「北京时刻」
+function bjDate(ts) {
+  return getDate(ts + BJ_OFFSET)
+}
+
+// 北京日序号，用于「今天/昨天」比较
+function bjDayIndex(ts) {
+  return Math.floor((ts + BJ_OFFSET) / DAY_MS)
+}
+
+/**
+ * 金额格式化
+ * 说明：只有金额很大时才缩写成「万 / 亿」，避免日常金额（如 14436.50）
+ *      被显示成「1.44万」造成「数字不对」的误解。
+ * @param {number|string} amount 金额
+ * @param {number} decimals 小数位数，默认 2
+ */
+function formatAmount(amount, decimals) {
+  var d = (decimals === undefined || decimals === null) ? 2 : decimals
+  var num = 0
+  var parsed = 0
+
+  if (amount !== null && amount !== undefined && amount !== '') {
+    parsed = parseFloat(amount)
+    // 不用 isFinite / isNaN：WXS 的全局对象是裁剪过的，这里用纯比较保证可用。
+    // parsed !== parsed 拦住 NaN，两个 Infinity 比较拦住 ±Infinity
+    // （否则 toFixed 会把 Infinity 原样输出成 "Infinity亿"）。
+    if (parsed === parsed && parsed !== Infinity && parsed !== -Infinity) {
+      num = parsed
+    }
+  }
+
+  var abs = num < 0 ? -num : num
+
+  if (abs >= 100000000) {
+    return (num / 100000000).toFixed(2) + '亿'
+  }
+  if (abs >= 100000) {
+    return (num / 10000).toFixed(2) + '万'
+  }
+
+  return num.toFixed(d)
+}
+
+/**
+ * 相对时间：今天 / 昨天 / 周几 / 月日 + HH:mm
+ */
+function formatTime(ts) {
+  if (!ts) return ''
+
+  var date = bjDate(ts)
+  var diffDays = bjDayIndex(getDate().getTime()) - bjDayIndex(ts)
+
+  var timeStr = pad2(date.getUTCHours()) + ':' + pad2(date.getUTCMinutes())
+
+  if (diffDays === 0) return '今天 ' + timeStr
+  if (diffDays === 1) return '昨天 ' + timeStr
+  if (diffDays > 1 && diffDays < 7) return WEEK_DAYS[date.getUTCDay()] + ' ' + timeStr
+
+  return (date.getUTCMonth() + 1) + '月' + date.getUTCDate() + '日 ' + timeStr
+}
+
+/**
+ * 仅时间：HH:mm
+ */
+function formatTimeOnly(ts) {
+  if (!ts) return ''
+  var date = bjDate(ts)
+  return pad2(date.getUTCHours()) + ':' + pad2(date.getUTCMinutes())
+}
+
+/**
+ * 完整日期时间：YYYY-MM-DD HH:mm
+ */
+function formatFull(ts) {
+  if (!ts) return ''
+  var date = bjDate(ts)
+  return date.getUTCFullYear() + '-' + pad2(date.getUTCMonth() + 1) + '-' + pad2(date.getUTCDate()) +
+    ' ' + pad2(date.getUTCHours()) + ':' + pad2(date.getUTCMinutes())
+}
+
+/**
+ * 完整日期时间（含秒）：YYYY-MM-DD HH:mm:ss
+ */
+function formatFullSec(ts) {
+  if (!ts) return ''
+  var date = bjDate(ts)
+  return formatFull(ts) + ':' + pad2(date.getUTCSeconds())
+}
+
+/**
+ * 短日期时间：MM-DD HH:mm
+ */
+function formatDateTime(ts) {
+  if (!ts) return ''
+  var date = bjDate(ts)
+  return pad2(date.getUTCMonth() + 1) + '-' + pad2(date.getUTCDate()) +
+    ' ' + pad2(date.getUTCHours()) + ':' + pad2(date.getUTCMinutes())
+}
+
+/**
+ * 按模式格式化时间
+ * @param {number} ts 时间戳
+ * @param {string} mode 'datetime' | 'time' | 'auto'（默认 auto）
+ */
+function formatByMode(ts, mode) {
+  if (mode === 'datetime') return formatFull(ts)
+  if (mode === 'time') return formatTimeOnly(ts)
+  return formatTime(ts)
+}
+
+module.exports = {
+  amount: formatAmount,
+  time: formatTime,
+  timeOnly: formatTimeOnly,
+  dateTime: formatDateTime,
+  full: formatFull,
+  fullSec: formatFullSec,
+  byMode: formatByMode
+}

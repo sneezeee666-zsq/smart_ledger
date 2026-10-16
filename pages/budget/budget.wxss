@@ -1,0 +1,255 @@
+/* ==========================================================================
+   预算管理
+   ========================================================================== */
+
+.sec {
+  margin: 0 24rpx 20rpx;
+}
+
+/* ==================== 档位角标 ====================
+   三档用同一套「浅底 + 深字」，只换色相。
+   ⚠️ 白底页上「已超出」可以用红（--income），因为这一页没有收入数字；
+      hero 卡上就不行 —— 那里的红是「收入」的意思（见 index.wxss 的说明）。 */
+.bd {
+  padding: 6rpx 18rpx;
+  border-radius: var(--r-pill);
+  font-size: 21rpx;
+  font-weight: 600;
+}
+
+.bd-safe { background: var(--brand-soft); color: var(--brand-dark); }
+.bd-near { background: var(--amber-soft); color: var(--amber); }
+.bd-over { background: var(--income-soft); color: var(--income); }
+
+/* ==================== 进度大数字 ==================== */
+
+.big {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  margin-bottom: 24rpx;
+}
+
+.big-label {
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.big-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6rpx;
+  color: var(--ink-1);
+}
+
+.big-cur {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.big-num {
+  font-size: 60rpx;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.big-sub {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+/* ==================== 进度条 ==================== */
+
+.track {
+  height: 16rpx;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  border: 1rpx solid var(--line);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width 0.3s ease;
+}
+
+.fill-safe { background: var(--brand); }
+.fill-near { background: var(--amber); }
+.fill-over { background: var(--income); }
+
+.scale {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 12rpx;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+/* ==================== 三格摘要 ==================== */
+
+.grid {
+  display: flex;
+  margin-top: 26rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.grid-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  position: relative;
+}
+
+/* 分隔线由 :nth-child 画，不用 border-right —— 最后一个格子不该有竖线，
+   而 :last-child 在自定义组件里恒为真，这里不是组件，用得上 */
+.grid-item + .grid-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6rpx;
+  bottom: 6rpx;
+  width: 1rpx;
+  background: var(--line);
+}
+
+.grid-label {
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.grid-value {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.grid-value.is-over { color: var(--income); }
+
+/* ==================== 口径说明行 ==================== */
+
+.hint {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  line-height: 1.6;
+}
+
+/* ==================== 额度输入 ==================== */
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 0 28rpx;
+  height: 104rpx;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  border: 1rpx solid var(--line);
+}
+
+.field-cur {
+  font-size: 34rpx;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.field-input {
+  flex: 1;
+  min-width: 0;
+  height: 104rpx;
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.field-ph {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+
+.presets {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.preset {
+  flex: 1;
+  height: 68rpx;
+  line-height: 68rpx;
+  text-align: center;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  border: 1rpx solid var(--line);
+  font-size: 25rpx;
+  color: var(--ink-2);
+}
+
+.preset-hover {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+}
+
+.save-btn {
+  width: 100%;
+  margin-top: 26rpx;
+}
+
+.clear-btn {
+  width: 100%;
+  margin-top: 16rpx;
+}
+
+.field-note {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  line-height: 1.6;
+}
+
+/* ==================== 口径说明 ==================== */
+
+.rule {
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.rule-last {
+  padding-bottom: 4rpx;
+  border-bottom: none;
+}
+
+.rule-t {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.rule-d {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+/* ==================== 脚注 ==================== */
+
+.footnote {
+  text-align: center;
+  padding: 16rpx 48rpx 48rpx;
+  font-size: 21rpx;
+  color: var(--ink-4);
+  line-height: 1.6;
+}

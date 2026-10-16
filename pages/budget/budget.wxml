@@ -1,0 +1,140 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<view class="container theme-{{theme}}">
+
+  <!-- ==================== 本月进度 ====================
+       有预算才渲染。⚠️ 未设预算时**不显示**一条 0/0 的进度条 ——
+       那看起来像"额度已经用光"，而实际上是"还没设过"，两件事不能让用户混淆。 -->
+  <view class="card sec" wx:if="{{budget}}">
+    <view class="card-head">
+      <text class="card-title">本月进度</text>
+      <text class="bd bd-{{budget.level}}">{{levelText}}</text>
+    </view>
+
+    <view class="big">
+      <text class="big-label">本月已花</text>
+      <view class="big-value">
+        <text class="big-cur">¥</text>
+        <text class="big-num num">{{fmt.amount(budget.spent)}}</text>
+      </view>
+      <text class="big-sub">每月预算 ¥{{fmt.amount(budget.amount)}}</text>
+    </view>
+
+    <!-- 宽度直接用云端算好的 barPercent：WXML 表达式没有 Math.min，
+         拿未封顶的百分比会在这块用超时把进度条捅出卡片外 -->
+    <view class="track">
+      <view class="fill fill-{{budget.level}}" style="width: {{budget.barPercent}}%;"></view>
+    </view>
+
+    <view class="scale">
+      <text>已用 {{budget.usedPercent}}%</text>
+      <text>已过 {{budget.daysPassed}} / {{budget.daysTotal}} 天</text>
+    </view>
+
+    <view class="grid">
+      <view class="grid-item">
+        <text class="grid-label">{{budget.over > 0 ? '已超出' : '剩余'}}</text>
+        <text class="grid-value num {{budget.over > 0 ? 'is-over' : ''}}">{{fmt.amount(budget.over > 0 ? budget.over : budget.remaining)}}</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-label">还剩天数</text>
+        <text class="grid-value num">{{budget.daysLeft}}</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-label">每天还能花</text>
+        <!-- 超支时云端给的是 null（负数的"每天还能花"没有意义），这里显示破折号 -->
+        <text class="grid-value num">{{budget.dailyLeft === null ? '—' : fmt.amount(budget.dailyLeft)}}</text>
+      </view>
+    </view>
+
+    <!-- 预测与算式分开写：
+         ⚠️ 「按目前速度」这四个字不能省 —— 它是推测，不是已经发生的事。
+            把它写得像既定事实，用户会真的据此调整消费。 -->
+    <text class="hint" wx:if="{{budget.forecast !== null}}">按目前速度（日均 ¥{{fmt.amount(budget.dailyAvg)}} × {{budget.daysTotal}} 天），本月预计支出 ¥{{fmt.amount(budget.forecast)}}。</text>
+    <text class="hint" wx:else>本月才过 {{budget.daysPassed}} 天，样本太少，先不给月末预测。</text>
+
+    <!-- 把分母写出来，用户能自己用「剩余 ÷ 剩几天」核对这个数字 -->
+    <text class="hint" wx:if="{{budget.dailyLeft !== null}}">「每天还能花」= 剩余 ¥{{fmt.amount(budget.remaining)}} ÷ 剩 {{budget.daysLeft}} 天（含今天）</text>
+  </view>
+
+  <!-- ==================== 还没设过预算 ==================== -->
+  <view class="card sec" wx:elif="{{loaded}}">
+    <view class="empty-state">
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">{{loadFailed ? '预算读不出来' : '还没有设置预算'}}</text>
+      <text class="empty-text">{{loadFailed ? '网络或云函数异常，下拉可以重试' : '设一个每月支出上限，首页就能看到还能花多少'}}</text>
+      <text class="empty-text">在下面填一个金额就行</text>
+    </view>
+  </view>
+
+  <!-- 首次加载：骨架屏，避免"空白 → 内容"闪一下 -->
+  <view class="card sec" wx:else>
+    <view class="skeleton sk-line mid"></view>
+    <view class="skeleton sk-line short"></view>
+  </view>
+
+  <!-- ==================== 设置额度 ==================== -->
+  <view class="card sec">
+    <view class="card-head">
+      <text class="card-title">每月支出预算</text>
+    </view>
+
+    <view class="field">
+      <text class="field-cur">¥</text>
+      <input
+        class="field-input num"
+        type="digit"
+        placeholder="例如 3000"
+        placeholder-class="field-ph"
+        value="{{input}}"
+        bindinput="onInput"
+        confirm-type="done"
+        bindconfirm="save"
+      />
+    </view>
+
+    <view class="presets">
+      <view
+        class="preset"
+        wx:for="{{presets}}"
+        wx:key="*this"
+        data-amount="{{item}}"
+        bindtap="onPresetTap"
+        hover-class="preset-hover"
+        hover-stay-time="60"
+      >{{item}}</view>
+    </view>
+
+    <button
+      class="btn-primary save-btn"
+      bindtap="save"
+      disabled="{{saving}}"
+    >{{saving ? '保存中…' : '保存'}}</button>
+
+    <button
+      class="btn-ghost clear-btn"
+      wx:if="{{budget}}"
+      bindtap="clearBudget"
+      disabled="{{saving}}"
+    >取消预算</button>
+
+    <text class="field-note">设一次就行，之后每个月自动沿用，不用每月重设。想改随时改。</text>
+  </view>
+
+  <!-- ==================== 这些数字怎么来的 ==================== -->
+  <view class="card sec">
+    <view class="card-head">
+      <text class="card-title">这些数字怎么来的</text>
+    </view>
+
+    <view class="rule {{index === rules.length - 1 ? 'rule-last' : ''}}" wx:for="{{rules}}" wx:key="k">
+      <text class="rule-t">{{item.t}}</text>
+      <text class="rule-d">{{item.d}}</text>
+    </view>
+  </view>
+
+  <view class="footnote">
+    <text>预算只存在你自己的账号里（按 openid 隔离），不会同步给任何人</text>
+  </view>
+
+</view>

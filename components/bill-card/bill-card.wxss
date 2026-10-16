@@ -1,0 +1,163 @@
+/* 账单卡片：分类色图标 + 标题/分类 + 右侧金额/时间 */
+
+/* ==========================================================================
+   左滑删除
+   --------------------------------------------------------------------------
+   结构：.swipe-wrap（裁切）> .swipe-del（右侧删除键，垫底）+ .bill-card（上层，靠
+   transform 左移让删除键露出来）。
+   ⚠️ .swipe-del 的宽度必须与 bill-card.js 里 REVEAL_RPX 一致（150），
+      两处由 tests/static-check.js 对账。
+   ========================================================================== */
+
+.swipe-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 150rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--income);
+  z-index: 0;
+}
+
+.swipe-del-hover {
+  opacity: 0.86;
+}
+
+.swipe-del-text {
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 500;
+  letter-spacing: 1rpx;
+}
+
+/* ==========================================================================
+   卡片本体
+   ========================================================================== */
+
+.bill-card {
+  /* 压在删除键之上 —— 卡片必须不透明，否则删除键会透过来 */
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+/* 手势结束后才挂 transition：拖动中挂上会和手指打架（橡皮筋感） */
+.bill-card.is-anim {
+  transition: transform 0.2s ease, background 0.15s ease;
+}
+
+/* 注意：不能在组件里用 :last-child —— 组件根节点在自己的 shadow tree 里
+   永远是唯一子节点，:last-child 会恒成立把边框全去掉。
+   是否显示分割线由父页面通过 show-border 显式传入。 */
+.bill-card.no-border {
+  border-bottom: none;
+}
+
+.bill-card-hover {
+  background: var(--surface-3);
+}
+
+.bill-card.is-compact {
+  padding: 20rpx 0;
+}
+
+/* ---------- 左侧分类图标 ---------- */
+
+.bill-icon {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 22rpx;
+  flex-shrink: 0;
+}
+
+.is-compact .bill-icon {
+  width: 70rpx;
+  height: 70rpx;
+  border-radius: 21rpx;
+  margin-right: 18rpx;
+}
+
+.bill-icon-emoji {
+  font-size: 36rpx;
+  line-height: 1;
+}
+
+.is-compact .bill-icon-emoji {
+  font-size: 32rpx;
+}
+
+/* ---------- 中间信息 ---------- */
+
+.bill-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.bill-title {
+  font-size: 29rpx;
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+.bill-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.bill-cat {
+  flex-shrink: 0;
+}
+
+.bill-sep {
+  margin: 0 8rpx;
+  flex-shrink: 0;
+  color: var(--ink-4);
+}
+
+.bill-product {
+  min-width: 0;
+}
+
+/* ---------- 右侧金额 / 时间 ---------- */
+
+.bill-right {
+  margin-left: 20rpx;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+}
+
+.bill-amount {
+  font-size: 31rpx;
+  font-weight: 600;
+}
+
+.bill-time {
+  font-size: 22rpx;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
