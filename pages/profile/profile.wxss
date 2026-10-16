@@ -169,6 +169,8 @@
 .ic-violet { background: var(--violet-soft); }
 .ic-slate { background: var(--surface-3); }
 .ic-teal { background: #E3F5F2; }
+/* 赞赏爱心：暖红的浅底。与 ic-red（危险语义）的 #FDECEC 区分开 */
+.ic-rose { background: #FDEDF2; }
 
 /* 主题色点：色值由 JS 按当前主题内联写入 */
 .theme-dot {
@@ -465,5 +467,46 @@
   text-align: center;
   padding: 16rpx 0 48rpx;
   font-size: 21rpx;
+  color: var(--ink-4);
+}
+
+/* ==================== 赞赏弹层 ==================== */
+
+.rw-qr {
+  display: block;
+  width: 360rpx;
+  height: 360rpx;
+  margin: 4rpx auto 0;
+  border-radius: 24rpx;
+  border: 1rpx solid var(--line);
+}
+
+.rw-qr-hover {
+  opacity: 0.88;
+}
+
+.rw-slogan {
+  display: block;
+  margin-top: 26rpx;
+  text-align: center;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+.rw-hint {
+  display: block;
+  margin-top: 10rpx;
+  text-align: center;
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.rw-note {
+  display: block;
+  margin-top: 24rpx;
+  text-align: center;
+  font-size: 21rpx;
+  line-height: 1.7;
   color: var(--ink-4);
 }

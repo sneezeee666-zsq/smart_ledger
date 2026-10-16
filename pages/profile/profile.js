@@ -84,6 +84,8 @@ Page({
 
     // 关于（作者 / 联系方式 / 版权）
     showAboutSheet: false,
+    // 赞赏弹层
+    showRewardSheet: false,
     author: AUTHOR,
     email: EMAIL,
     github: GITHUB,
@@ -477,6 +479,47 @@ Page({
 
   closeAboutSheet() {
     this.setData({ showAboutSheet: false })
+  },
+
+  // ---------------- 赞赏支持 ----------------
+
+  showReward() {
+    this.setData({ showRewardSheet: true })
+  },
+
+  closeRewardSheet() {
+    this.setData({ showRewardSheet: false })
+  },
+
+  /**
+   * 打开赞赏码的全屏预览（在里面长按即可识别二维码）。
+   *
+   * ⚠️ 为什么不直接在弹层里长按：<image> 组件不支持长按识别二维码，
+   *    只有 wx.previewImage 的全屏预览才有「识别二维码」入口 ——
+   *    这是小程序里展示收款码唯一官方认可的路径。
+   * ⚠️ 为什么先拷成临时文件：部分机型的 previewImage 对**包内路径**支持不稳
+   *    （预览黑屏/打不开），先 readFile 包内文件再 writeFile 到
+   *    USER_DATA_PATH，用临时路径预览在双端都稳；拷贝失败再退回包内路径试一次。
+   */
+  previewRewardQr() {
+    const SRC = '/assets/icons/reward-qr.png'
+    const tmp = wx.env.USER_DATA_PATH + '/reward-qr.png'
+    const fs = wx.getFileSystemManager()
+
+    const preview = (path) => wx.previewImage({ urls: [path] })
+
+    fs.readFile({
+      filePath: SRC,
+      success: (res) => {
+        fs.writeFile({
+          filePath: tmp,
+          data: res.data,
+          success: () => preview(tmp),
+          fail: () => preview(SRC)      // 拷不进去就退回包内路径
+        })
+      },
+      fail: () => preview(SRC)
+    })
   },
 
   /**

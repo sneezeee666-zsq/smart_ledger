@@ -129,7 +129,7 @@
 
   <view class="footer">
     <button
-      class="save-btn {{submitting ? 'is-saving' : ''}}"
+      class="btn-primary save-btn {{submitting ? 'is-saving' : ''}}"
       bindtap="save"
       disabled="{{submitting || loading}}"
     >{{submitting ? '保存中…' : (isEdit ? '保存修改' : '保存')}}</button>

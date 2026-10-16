@@ -1127,6 +1127,66 @@ console.log('【19】关于信息与版权声明')
   }
 }
 
+// ------------------------------------------------ 20. 按钮文字必须居中
+// 踩过的坑：记一笔页的保存按钮写成**独立类**（没搭全局 .btn-primary），
+// 于是拿不到 text-align: center 和 padding: 0，只能吃微信 button 的默认样式
+// （默认带 padding: 0 14px、对齐取决于基础库默认值），
+// 表现是「按钮文字不居中」—— 而代码看着完全正常。
+// 约定：按钮一律复用 app.wxss 的全局按钮类（单一数据源）；
+// 确实要自定义的（如 AI 页 hero-cta）必须自己显式写 text-align: center。
+console.log('【20】按钮文字居中（复用全局按钮类或显式 text-align）')
+
+{
+  const GLOBAL_BTN = ['btn-primary', 'btn-outline', 'btn-ghost', 'btn-danger']
+  // 取某个类名的规则体。复合选择器（.a.is-saving / .a[disabled] / .a::after）
+  // 也一起算进来 —— 只要其中一条写了 text-align: center 就算数。
+  const ruleBodies = (wxss, cls) => {
+    if (!wxss) return []
+    const re = new RegExp('\\.' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b[^{]*\\{([^}]*)\\}', 'g')
+    const out = []
+    for (const m of wxss.matchAll(re)) out.push(m[1])
+    return out
+  }
+
+  const appSrc = exists(path.join(ROOT, 'app.wxss')) ? read(path.join(ROOT, 'app.wxss')) : ''
+
+  let btnCount = 0
+  for (const f of WXML_FILES) {
+    const src = read(f).replace(/<!--[\s\S]*?-->/g, '')
+    const wxssPath = f.replace(/\.wxml$/, '.wxss')
+    const pageSrc = exists(wxssPath) ? read(wxssPath) : ''
+
+    for (const m of src.matchAll(/<button\b((?:"[^"]*"|'[^']*'|[^>"'])*?)\/?>/g)) {
+      const attrs = m[1]
+      const clsMatch = attrs.match(/\bclass\s*=\s*"([^"]*)"/)
+      if (!clsMatch) {
+        err(rel(f), '<button> 没有 class —— 会用微信默认样式（文字不居中、还带默认内边距）')
+        continue
+      }
+      btnCount++
+
+      // 去掉 {{}} 表达式，只留静态类名
+      const classes = clsMatch[1]
+        .replace(/\{\{[^}]*\}\}/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+
+      if (classes.some(c => GLOBAL_BTN.indexOf(c) !== -1)) continue
+
+      const hasCenter = classes.some(c =>
+        ruleBodies(pageSrc, c).concat(ruleBodies(appSrc, c))
+          .some(b => /text-align\s*:\s*center/.test(b))
+      )
+      if (!hasCenter) {
+        const cls = clsMatch[1]
+        const detail = '既没复用全局按钮类（' + GLOBAL_BTN.join(' / ') + '），自己的类里也没写 text-align: center —— 文字不会居中'
+        err(rel(f), '<button class="' + cls + '"> ' + detail)
+      }
+    }
+  }
+  console.log(`   校验了 ${btnCount} 个 button`)
+}
+
 // ------------------------------------------------ 汇总
 console.log('\n' + '='.repeat(60))
 if (errors.length) {

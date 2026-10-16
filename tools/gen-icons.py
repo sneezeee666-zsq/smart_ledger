@@ -236,6 +236,22 @@ def ic_info(d, c):
     stroke(d, [(12, 11.2), (12, 16.8)], c, 2.1)
 
 
+def ic_heart(d, c):
+    """爱心：赞赏/感谢。
+
+    经典心形画法：两个圆各只取**上半段弧**（左弧从左下扫过顶部到正中凹点，
+    右弧镜像），再从弧的末端用两条斜线汇到底部尖点。
+    圆的下半段不画 —— 露出来就会变成「oo + V」。
+    """
+    # 左耳：圆心(8.2, 8.0) r=3.8，弧从 135°（左下）顺时针扫到 360°（正右 = 顶部凹点）
+    d.arc([_pt(4.4, 4.2), _pt(12.0, 11.8)], start=135, end=360, fill=c, width=_w(2.0))
+    # 右耳：圆心(15.8, 8.0) r=3.8，弧从 180°（左端 = 凹点）扫到 405°（=45°，右下）
+    d.arc([_pt(12.0, 4.2), _pt(19.6, 11.8)], start=180, end=405, fill=c, width=_w(2.0))
+    # 斜线从弧的末端（θ=135° / 45° 处，3.8×0.7071≈2.69）汇到底尖
+    stroke(d, [(5.51, 10.69), (12.0, 20.0)], c, 2.0)
+    stroke(d, [(18.49, 10.69), (12.0, 20.0)], c, 2.0)
+
+
 def ic_inbox(d, c):
     """空状态：文件箱"""
     stroke(d, [(3.2, 13.4), (3.2, 18.0), (20.8, 18.0), (20.8, 13.4)], c, 1.9)
@@ -307,6 +323,9 @@ def main():
     BLUE = (43, 92, 230, 255)
     MUTED = (195, 204, 218, 255)
     WHITE = (255, 255, 255, 255)
+    # 赞赏爱心的暖红：与「收入/危险」的 RED(229,72,77) 区分开，
+    # 用更柔和、更"暖"的珊瑚红，避免和「删除/危险」撞语义
+    ROSE = (233, 84, 118, 255)
 
     jobs = []
 
@@ -339,6 +358,9 @@ def main():
         # 会员中心：琥珀金皇冠 —— 与「分类识别」的 AMBER 同色但图标不同，
         # 菜单里一处金一处金不冲突（都是"值得注意/尊贵"的语义）
         ('mi-vip.png', ic_crown, AMBER, FX_SIZE),
+        # 赞赏支持：爱心。用暖红（RED 是"收入/危险"语义，这里另用一个偏暖的红
+        # 以区分，见下方 ROSE）
+        ('mi-reward.png', ic_heart, ROSE, FX_SIZE),
     ]
 
     # ---- 深底上的白色标记（hero 卡里用，不跟主题走）----
@@ -360,6 +382,29 @@ def main():
         print('  %-28s %sx%-3s %6d B' % (name, size, size, sz))
 
     print('\n共 %d 个图标，合计 %.1f KB' % (len(jobs), total / 1024.0))
+
+    # ---- 赞赏码占位图（⚠️ 仅当文件不存在时才生成）----
+    # 这里放的是 assets/reward-qr.png，作者拿到微信「赞赏码」后直接用真图覆盖这个路径；
+    # 占位逻辑故意做成"存在即跳过"，重跑本脚本不会把真二维码冲掉。
+    qr_path = os.path.join(outdir, 'reward-qr.png')
+    if not os.path.exists(qr_path):
+        img = Image.new('RGBA', (480, 480), (255, 255, 255, 255))
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([10, 10, 469, 469], radius=40,
+                            outline=(224, 229, 237, 255), width=6)
+        # 三个「回」字定位角，一眼能看出是二维码占位
+        for (x, y) in [(46, 46), (398, 46), (46, 398)]:
+            d.rounded_rectangle([x, y, x + 74, y + 74], radius=16,
+                                outline=(209, 215, 226, 255), width=9)
+            d.rounded_rectangle([x + 24, y + 24, x + 50, y + 50], radius=7,
+                                fill=(209, 215, 226, 255))
+        # 中央爱心（复用 ic_heart，在 24 坐标系画完再缩放贴入）
+        heart = Image.new('RGBA', (BASE, BASE), (0, 0, 0, 0))
+        ic_heart(ImageDraw.Draw(heart), ROSE)
+        heart = heart.resize((150, 150), Image.LANCZOS)
+        img.paste(heart, (165, 165), heart)
+        img.save(qr_path, 'PNG', optimize=True)
+        print('\n已生成赞赏码占位图 reward-qr.png（拿到真赞赏码后直接覆盖它）')
 
 
 if __name__ == '__main__':

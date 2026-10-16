@@ -207,16 +207,18 @@
   border-top: 1rpx solid var(--line);
 }
 
+/* 保存按钮：复用全局 .btn-primary（底色/圆角/居中/阴影都在那里），
+   这里只放本页的差异 —— 通栏 + 略高一点 + 字号大一点。
+   ⚠️ 以前这里是独立类，没搭 .btn-primary，于是拿不到 text-align: center
+      和 padding: 0，只能吃微信 button 的默认样式（默认带 padding: 0 14px），
+      表现就是「按钮文字不居中」。与 budget 页同一套写法（那边是
+      class="btn-primary save-btn"），两边保持一致。 */
 .save-btn {
-  background: var(--brand);
-  color: #fff;
-  border-radius: var(--r-pill);
-  font-size: 32rpx;
-  font-weight: 500;
+  width: 100%;
   height: 92rpx;
+  /* line-height 必须跟着 height 一起改，否则文字会偏 2rpx */
   line-height: 92rpx;
-  border: none;
-  box-shadow: var(--sh-brand);
+  font-size: 32rpx;
 }
 
 .save-btn::after {
