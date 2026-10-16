@@ -19,6 +19,7 @@
  */
 
 const theme = require('../../utils/theme.js')
+const share = require('../../utils/share.js')
 const form = require('../../utils/bill-form.js')
 
 // ===== 下拉选项：取自真实微信账单的高频取值，按需增删即可 =====
@@ -91,6 +92,20 @@ Page({
     loading: false
   },
 
+
+  // ---------------- 分享 ----------------
+  // ⚠️ 必须定义 onShareAppMessage，否则右上角菜单不出现"转发"按钮，
+  //    表现为用户点右上角三个点后提示"当前页面无法转发"。
+  // 本页可能是隐私页（账单/我的）或过程页，只用通用分享：固定封面、不带任何
+  // 用户数据 —— 默认分享是当前页面截图，会把明细/统计数字一起截走。
+  onShareAppMessage() {
+    return share.appShare('/pages/add-bill/add-bill')
+  },
+
+  // 朋友圈分享：微信要求必须给图片，用固定封面（同样不带用户数据）
+  onShareTimeline() {
+    return share.timelineShare()
+  },
   onLoad(options) {
     // 本页不是 tabBar 页，只取主题（tabBar 由 tabBar 页负责同步）
     theme.attach(this)

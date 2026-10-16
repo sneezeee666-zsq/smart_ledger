@@ -46,6 +46,11 @@
   - 恢复方式（三处一起翻）：`getStatistics/index.js` 的 `INSIGHT_REQUIRE_VIP` 改回 `true` + `pages/ai/ai.js` 的 `locked` 改回 `!user.isVip()` + 在「我的」页加回「会员中心」入口
   - 真实支付接入路径见 README「微信支付怎么接」（`createVipOrder` 调 `cloud.cloudPay.unifiedOrder` + 新增 `payCallback` 回调云函数）
 - 🆕 **AI 分析优化**：范围可选**近 7 天 / 近 30 天**两档；点击后模拟「深度思考」节奏（界面停留 3~10 秒并显示「深度思考中…请稍后…」，不向用户透露这是模拟）；规则从 7 条扩到 **10 条**（新增月光预警 / 深夜消费 / 单笔大额，「支出涨跌」改为「日均涨跌」）
+- 🔗 **全页面可转发**：微信规定**只有定义了 `onShareAppMessage` 的页面，右上角菜单才会出现"转发"按钮**（漏定义的表现就是"当前页面无法转发"，且不报任何错）。9 个页面全部配上，文案集中在 `utils/share.js`：
+  - **隐私页**（账单 / 我的 / 表单页）用**通用分享** + 固定封面图 —— 默认分享是当前页面截图，会把交易明细一起截走，所以这些页面必须指定不含任何用户数据的封面
+  - **统计页**用**内容分享**：标题带真实支出数字（`path` 带上周期，被分享者打开看到同一个月）。这是用户主动点的转发，暴露什么由他自己决定
+  - 同时配 `onShareTimeline`（朋友圈分享），同样用固定封面
+  - 静态检查第 21 组 + `tests/share-test.js` 钉住：新增页面漏定义会直接报错
 - 💰 **赞赏支持**：「我的 → 说明 → 赞赏支持」展示微信赞赏码（点图片全屏放大 → 长按识别打赏）。个人主体没有微信支付商户号、小程序内调不起收款，展示收款码是官方认可的个人创作者方式；⚠️ **打赏不附带任何权益** —— "付钱解锁功能"属变相收费会被判违规。码图在 `assets/icons/reward-qr.png`（当前是占位图，拿到真赞赏码后直接覆盖；`gen-icons.py` 只在文件不存在时才生成占位，不会冲掉真图）
 - 📄 「关于」弹层保留作者信息（v0.7.1 引入）
 
@@ -387,6 +392,7 @@ smart-ledger/
 │   ├── greeting.js           # 首页问候语（时段分档 + 昵称拼接，可就地单测）
 │   ├── bill-form.js          # 记账/编辑表单的共用纯函数（UTC+8 时间反推 + 下拉原值保留）
 │   ├── bill-dedup.js         # 导入去重的挑拣纯函数（库重复 + 批内重复，前端本地判）
+│   ├── share.js              # 分享配置单一数据源（通用分享 / 统计页内容分享 / 朋友圈）
 │   ├── chart-format.js       # 图表数字的共用纯函数（Y 轴刻度取整 + 缩写单位 + 颜色转 rgba）
 │   ├── remove-bill.js        # 删除账单的统一出口（确认弹窗 + 云函数调用 + 提示）
 │   └── version.js            # 版本号唯一来源（改版本只改这里）
@@ -395,8 +401,8 @@ smart-ledger/
 │   └── gen-icons.py          # 图标生成（从 utils/theme.js 读主题色，产出各主题 tabBar 图标）
 │
 ├── tests/                    # 离线自测（不需要开发者工具、不联网）
-│   ├── run-all.js            # 一键跑完下面 15 个套件
-│   ├── static-check.js       # 静态检查 20 组：语法/引用/绑定/主题一致性/资源冗余/变量可达性/按钮居中…
+│   ├── run-all.js            # 一键跑完下面 16 个套件
+│   ├── static-check.js       # 静态检查 21 组：语法/引用/绑定/主题一致性/资源冗余/变量可达性/按钮居中…
 │   ├── test.js               # getStatistics 各 action 的聚合断言（含日均分母）
 │   ├── time-test.js          # toTimestamp 解析（Excel 序列号 / 非法输入）
 │   ├── wxs-test.js           # format.wxs 金额与时间（含跨时区一致性）
@@ -408,6 +414,7 @@ smart-ledger/
 │   ├── insight-test.js       # 智能分析：规则阈值边界 / **结论数字逐值审计** / 本月 vs 窗口口径
 │   ├── ai-page-test.js       # AI 分析页：范围切换同步说明小字（回归）/ 深度思考 / 失败态
 │   ├── import-dedup-test.js  # 导入去重：只传判重键 / 大批量不截断 / 跨用户隔离 / 分批下标偏移
+│   ├── share-test.js         # 分享转发：隐私页不带用户数据 / 统计页带数字 / 每页都能转发
 │   ├── theme-test.js         # 主题：非法值回落 / 图标路径存在性 / 持久化 / 不重复 setData / 导航栏与下拉底色
 │   ├── user-test.js          # 用户档案：自动建档 / 昵称规则 / 越权 / 主题偏好回落 / 问候语
 │   └── vip-test.js           # VIP：激活幂等 / **非沙箱模式拒绝客户端直调（防白嫖）** / 档案合并不丢 vip 字段 / 脏 vip 归一化
@@ -565,11 +572,11 @@ daysTotal, daysPassed, daysLeft, dailyAvg, dailyLeft, forecast, forecastOver, up
 node tests/run-all.js
 ```
 
-会依次跑 15 个套件，全部通过时最后输出 `✅ 全部 15 个套件通过`：
+会依次跑 16 个套件，全部通过时最后输出 `✅ 全部 16 个套件通过`：
 
 | 套件 | 守什么 |
 |------|--------|
-| `static-check.js` | **20 组静态检查**：JS/WXS 语法、JSON 可解析、页面四件套齐全、tabBar 图标与 PNG 文件头 + **项数（2~5）与三处形状清单同序**、`usingComponents` / `<wxs src>` / 本地图片路径、WXML 标签闭合、`wx:for` 缺 `wx:key`、WXML 误用过滤器 `{{x \| fn}}`、事件处理函数是否真的存在、跳转目标是否注册、`require` 路径、云函数名与 `package.json` name、废弃 API、组件 `styleIsolation`、WXML 变量是否在 `data` 里、`dataset` 与 `data-*` 是否对齐、canvas 选择器 id 与 `type="2d"`、**主题一致性**（`utils/theme.js` ↔ `.theme-*` 类 ↔ 图标 ↔ 页面接线，比对**值**而不只是存在性）+ 首页静态兜底色、**资源冗余与打包配置**、**WXSS 花括号配对与 CSS 变量可达性**（含 `class="hb-fill-{{level}}"` 这类动态后缀的前缀拼写）、**左滑删除键宽度（JS 常量 ↔ WXSS）与组件自定义事件是否真的被 triggerEvent**、**昵称长度与预算上下限常量前后端同值 + 云函数 package.json 版本号 + 本机存储键不撞车**、**「关于」信息格式与 WXML 绑定对账**（邮箱正则 / GitHub 必须是 https / 版权含作者与年份）、**按钮文字必须居中**（复用全局按钮类，或自己的类里显式写 `text-align: center`）|
+| `static-check.js` | **21 组静态检查**：JS/WXS 语法、JSON 可解析、页面四件套齐全、tabBar 图标与 PNG 文件头 + **项数（2~5）与三处形状清单同序**、`usingComponents` / `<wxs src>` / 本地图片路径、WXML 标签闭合、`wx:for` 缺 `wx:key`、WXML 误用过滤器 `{{x \| fn}}`、事件处理函数是否真的存在、跳转目标是否注册、`require` 路径、云函数名与 `package.json` name、废弃 API、组件 `styleIsolation`、WXML 变量是否在 `data` 里、`dataset` 与 `data-*` 是否对齐、canvas 选择器 id 与 `type="2d"`、**主题一致性**（`utils/theme.js` ↔ `.theme-*` 类 ↔ 图标 ↔ 页面接线，比对**值**而不只是存在性）+ 首页静态兜底色、**资源冗余与打包配置**、**WXSS 花括号配对与 CSS 变量可达性**（含 `class="hb-fill-{{level}}"` 这类动态后缀的前缀拼写）、**左滑删除键宽度（JS 常量 ↔ WXSS）与组件自定义事件是否真的被 triggerEvent**、**昵称长度与预算上下限常量前后端同值 + 云函数 package.json 版本号 + 本机存储键不撞车**、**「关于」信息格式与 WXML 绑定对账**（邮箱正则 / GitHub 必须是 https / 版权含作者与年份）、**按钮文字必须居中**（复用全局按钮类，或自己的类里显式写 `text-align: center`）、**每个页面都必须定义 `onShareAppMessage`**（漏定义 = 右上角菜单不出现转发按钮，表现为当前页面无法转发，且不会报任何错）|
 | `test.js` | `getStatistics` 各 action 的金额/笔数/占比/趋势/空数据边界；**旧色板数据是否自动套用新配色**；日均收支的分母用独立算法验算 |
 | `time-test.js` | `toTimestamp` 对 Excel 序列号、日期字符串、非法输入（13 月 / 2 月 30 日 / 空值）的处理 |
 | `wxs-test.js` | `format.wxs` 金额与时间格式；**用 4 个不同 `TZ` 起子进程比对输出是否逐字节一致** |
@@ -691,7 +698,7 @@ node tests/run-all.js
 
 ### 改动生效清单（改了统计/解析逻辑后照做）
 
-1. 先跑 `node tests/run-all.js`，15 个套件全绿再继续
+1. 先跑 `node tests/run-all.js`，16 个套件全绿再继续
 2. 重新部署 `parseCSV`、`getStatistics`、`user` —— 只部署一部分会出现「改了一半」的假象
 3. 首页 / 账单 / 统计三个页面分别下拉刷新一次
 

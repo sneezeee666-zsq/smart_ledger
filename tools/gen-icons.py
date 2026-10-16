@@ -406,6 +406,42 @@ def main():
         img.save(qr_path, 'PNG', optimize=True)
         print('\n已生成赞赏码占位图 reward-qr.png（拿到真赞赏码后直接覆盖它）')
 
+    # ---- 分享封面（同样仅当文件不存在时生成）----
+    # 账单页 / 我的页等隐私页面分享时用这张固定封面：
+    # 默认分享是当前页面截图，会把交易明细截走，所以这些页面必须指定 imageUrl。
+    cover_path = os.path.join(outdir, 'share-cover.png')
+    if not os.path.exists(cover_path):
+        # 品牌色渐变（取默认主题的 brand，深一档收尾）+ 放大的 app 标记
+        brand = themes[0][2].lstrip('#')
+        top = tuple(int(brand[i:i + 2], 16) for i in (0, 2, 4))
+        bottom = tuple(max(0, int(c * 0.62)) for c in top)
+        W, H = 500, 400
+        img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        # 竖向三段渐变（横向均匀即可，视觉上足够）
+        steps = 24
+        for i in range(steps):
+            r = int(top[0] + (bottom[0] - top[0]) * i / (steps - 1))
+            g = int(top[1] + (bottom[1] - top[1]) * i / (steps - 1))
+            b = int(top[2] + (bottom[2] - top[2]) * i / (steps - 1))
+            y0 = H * i // steps
+            y1 = H * (i + 1) // steps + 1
+            d.rectangle([0, y0, W, y1], fill=(r, g, b, 255))
+        # 装饰圆点（左上/右下两簇，纯装饰）
+        for (cx, cy, cr, a) in [(64, 74, 30, 40), (452, 330, 44, 34), (418, 66, 16, 46)]:
+            d.ellipse([cx - cr, cy - cr, cx + cr, cy + cr], fill=(255, 255, 255, a))
+        # 中央：白色 app 标记（复用 ic_bars 的绘制，在 24 坐标系画完缩放贴入）
+        mark = Image.new('RGBA', (BASE, BASE), (0, 0, 0, 0))
+        ic_bars(ImageDraw.Draw(mark), WHITE)
+        mark = mark.resize((132, 132), Image.LANCZOS)
+        img.paste(mark, (W // 2 - 66, H // 2 - 92), mark)
+        # 底部一条浅色圆角条，模拟"文字行"（不依赖系统字体，避免换机器缺字体）
+        d.rounded_rectangle([W // 2 - 84, H // 2 + 58, W // 2 + 84, H // 2 + 74],
+                            radius=8, fill=(255, 255, 255, 70))
+        img = img.resize((W, H), Image.LANCZOS)
+        img.save(cover_path, 'PNG', optimize=True)
+        print('已生成分享封面 share-cover.png（不含任何用户数据，隐私页分享用）')
+
 
 if __name__ == '__main__':
     main()

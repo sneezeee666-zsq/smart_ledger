@@ -14,6 +14,7 @@
  */
 
 const theme = require('../../utils/theme.js')
+const share = require('../../utils/share.js')
 const user = require('../../utils/user.js')
 
 // 档位文案。分档（safe/near/over）由**云端**判定，这里只负责翻译成人话 ——
@@ -73,6 +74,20 @@ Page({
     rules: RULES
   },
 
+
+  // ---------------- 分享 ----------------
+  // ⚠️ 必须定义 onShareAppMessage，否则右上角菜单不出现"转发"按钮，
+  //    表现为用户点右上角三个点后提示"当前页面无法转发"。
+  // 本页可能是隐私页（账单/我的）或过程页，只用通用分享：固定封面、不带任何
+  // 用户数据 —— 默认分享是当前页面截图，会把明细/统计数字一起截走。
+  onShareAppMessage() {
+    return share.appShare('/pages/budget/budget')
+  },
+
+  // 朋友圈分享：微信要求必须给图片，用固定封面（同样不带用户数据）
+  onShareTimeline() {
+    return share.timelineShare()
+  },
   onLoad() {
     // 本页不是 tabBar 页：只取主题（tabBar 配色由 tabBar 页负责同步）。
     // 第三个参数不传 —— 本页导航栏是白底黑字，与 hero 色无关。

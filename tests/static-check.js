@@ -1187,6 +1187,33 @@ console.log('【20】按钮文字居中（复用全局按钮类或显式 text-al
   console.log(`   校验了 ${btnCount} 个 button`)
 }
 
+// ------------------------------------------------ 21. 页面可转发
+// 微信规则：**只有定义了 onShareAppMessage 的页面，右上角菜单才会出现"转发"按钮**。
+// 漏定义不会报任何错，表现是用户点右上角三个点后提示"当前页面无法转发" ——
+// 纯产品能力缺失，而每个页面都手动确认一遍太容易漏，所以用检查钉住。
+console.log('【21】页面可转发（必须定义 onShareAppMessage）')
+
+{
+  let okCount = 0
+  const noTimeline = []
+  for (const p of PAGES) {
+    const js = path.join(ROOT, p + '.js')
+    if (!exists(js)) continue
+    const src = read(js)
+    if (!/\bonShareAppMessage\s*\(/.test(src)) {
+      err(rel(js), '没有定义 onShareAppMessage —— 右上角菜单不会出现"转发"按钮（表现为"当前页面无法转发"）')
+      continue
+    }
+    okCount++
+    // onShareTimeline 是可选能力（朋友圈），漏了只提示不拦
+    if (!/\bonShareTimeline\s*\(/.test(src)) noTimeline.push(rel(js))
+  }
+  if (noTimeline.length) {
+    noTimeline.forEach(f => warn(f, '没定义 onShareTimeline —— 少一个朋友圈分享入口（可选，不拦）'))
+  }
+  if (okCount === PAGES.length) console.log(`   ${okCount} 个页面全部可转发`)
+}
+
 // ------------------------------------------------ 汇总
 console.log('\n' + '='.repeat(60))
 if (errors.length) {

@@ -11,6 +11,7 @@
  */
 
 const theme = require('../../utils/theme.js')
+const share = require('../../utils/share.js')
 // 图表口径（金额缩写、Y 轴刻度、niceMax、颜色转 rgba）统一收在 utils/chart-format.js：
 // 这些函数放在页面里就没法离线单测，而它们恰恰对应着踩过的坑
 // （把 ¥8.80 显示成 ¥9、Y 轴出现两个 1）。见 tests/chart-format-test.js。
@@ -81,6 +82,21 @@ Page({
     firstLoaded: false
   },
 
+
+  // ---------------- 分享 ----------------
+  // ⚠️ 必须定义 onShareAppMessage，否则右上角菜单不出现"转发"按钮，
+  //    表现为用户点右上角三个点后提示"当前页面无法转发"。
+  // 统计页用内容分享：标题带真实支出数字，转发才有传播力。这是用户主动点的
+  // 转发，暴露什么由他自己决定（类似晒年度账单）；不设 imageUrl，微信会用
+  // 当前页面截图（带图表），比固定封面更有传播力。
+  onShareAppMessage() {
+    return share.statsShare(this.data)
+  },
+
+  // 朋友圈分享：微信要求必须给图片，用固定封面（同样不带用户数据）
+  onShareTimeline() {
+    return share.timelineShare()
+  },
   onLoad() {
     this._seq = 0
     this.loadStatistics()
