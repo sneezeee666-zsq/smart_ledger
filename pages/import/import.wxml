@@ -86,7 +86,7 @@
     <view class="card preview-card">
       <view class="preview-header">
         <text class="preview-title">解析结果预览</text>
-        <text class="preview-count">共 {{parsedData.length}} 条记录</text>
+        <text class="preview-count">共 {{parsedCount}} 条记录</text>
       </view>
 
       <!-- 统计概览 -->
@@ -112,7 +112,7 @@
       <!-- 去重结果 -->
       <view class="dedup-bar">
         <view class="dedup-item">
-          <text class="dedup-num new">{{deduping ? '—' : newBills.length}}</text>
+          <text class="dedup-num new">{{deduping ? '—' : newCount}}</text>
           <text class="dedup-label">本次新增</text>
         </view>
         <view class="dedup-divider"></view>
@@ -177,7 +177,7 @@
         </view>
         <view class="confirm-item">
           <text class="confirm-label">本次新增</text>
-          <text class="confirm-value amount-income">{{newBills.length}} 条</text>
+          <text class="confirm-value amount-income">{{newCount}} 条</text>
         </view>
         <view class="confirm-item">
           <text class="confirm-label">重复跳过</text>
@@ -199,7 +199,7 @@
 
       <view class="confirm-notice">
         <view class="notice-dot">!</view>
-        <text class="notice-text">{{newBills.length > 0 ? '原有数据会保留，仅导入新增记录' : '没有需要导入的新记录，全部为重复数据'}}</text>
+        <text class="notice-text">{{newCount > 0 ? '原有数据会保留，仅导入新增记录' : '没有需要导入的新记录，全部为重复数据'}}</text>
       </view>
     </view>
 
@@ -210,7 +210,7 @@
         disabled="{{importing}}"
         bindtap="confirmImport"
       >
-        {{importing ? '导入中...' : (newBills.length > 0 ? '确认导入 ' + newBills.length + ' 条' : '无新增记录')}}
+        {{importing ? '导入中...' : (newCount > 0 ? '确认导入 ' + newCount + ' 条' : '无新增记录')}}
       </button>
     </view>
   </view>

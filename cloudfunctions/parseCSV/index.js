@@ -21,9 +21,16 @@ exports.main = async (event, context) => {
     return await clearBills(openid)
   }
 
-  // 分支：导入前去重（对比已有数据，只返回需要新增的记录）
+  // 分支：导入前去重（对比已有数据，只返回需要新增的部分）
+  //
+  // ⚠️ 只收「判重键」而不是整条账单，是有原因的：
+  //    wx.cloud.callFunction 的 data 有传输大小限制（官方建议临界值 100KB），
+  //    超过直接报 `data exceed max size`。一条解析结果有 15 个字段（≈330 字节），
+  //    500 条就 ≈165KB —— 必然超限，表现为「去重检查失败」，然后确认页显示 0 条。
+  //    而判重只需要 orderNo 等几个字段拼成的一把键（≈40 字节/条），
+  //    500 条才 ≈20KB。返回值同样只给「哪些下标已存在」，不把整份账单传回来。
   if (event.action === 'dedup') {
-    return await dedupBills(openid, event.bills || [])
+    return await dedupBills(openid, event.keys || [])
   }
 
   // 分支：删除若干条账单（账单左滑 / 详情页删除共用）
@@ -106,6 +113,13 @@ exports.main = async (event, context) => {
       code: 0,
       message,
       data: billsWithMeta,
+      // 判重键，与 data **逐下标对齐**。
+      // ⚠️ 单独一个数组，而不是给每条记录加一个 key 字段：
+      //    ① 前端拿它只用于去重，绝不该被写进账单文档（会多出一个无关字段）；
+      //    ② 去重只需要这把键，把整条记录传给云函数会超出 callFunction 的大小限制。
+      // ⚠️ 必须用**入库前**的字段算：写库后 orderNo/createTime/amount/title/type
+      //    五个字段原样保留，所以这把键对「库里的文档」同样成立，两边才对得上。
+      keys: bills.map(bill => makeBillKey(bill)),
       count: billsWithMeta.length,
       skipped
     }
@@ -228,21 +242,24 @@ function makeBillKey(bill) {
 }
 
 /**
- * 导入前去重
- * - 拉取该用户已有的全部账单标识
- * - 过滤掉已存在的、以及本批次内部重复的
+ * 导入前去重：查出「提交的这些键里，哪些已经在库里」
+ *
+ * ⚠️ 这里只做「与库里比」这一半；「本批次内部重复」由前端用同一把键本地判
+ *    （utils/bill-dedup.js）。这样前端可以**分批**提交键 —— 任意大的文件
+ *    都不会撑爆单次调用 —— 而批内去重依然完整（本地 Set 跨越所有批次）。
  *
  * @param {string} openid
- * @param {Array} bills 本次解析出的账单
- * @returns {Object} { code, message, data: 需要新增的账单, duplicates: 重复条数, existing: 已有总数 }
+ * @param {Array<string>} keys 本次解析出的判重键
+ * @returns {Object} { code, data: { dupIdx, existing }, duplicates, existing }
+ *   dupIdx = 在提交的 keys 数组中、已在库里的**下标**
  */
-async function dedupBills(openid, bills) {
+async function dedupBills(openid, keys) {
   try {
-    if (!Array.isArray(bills) || bills.length === 0) {
-      return { code: 0, message: '没有需要导入的记录', data: [], duplicates: 0, existing: 0 }
+    if (!Array.isArray(keys) || keys.length === 0) {
+      return { code: 0, data: { dupIdx: [], existing: 0 }, duplicates: 0, existing: 0 }
     }
 
-    // 1) 拉取已有账单的判重字段
+    // 1) 拉取已有账单的判重字段（只取 5 个字段，不拉整条文档）
     const existingKeys = {}
     let existingCount = 0
     const LIMIT = 1000
@@ -265,30 +282,28 @@ async function dedupBills(openid, bills) {
       if (res.data.length < LIMIT) break
     }
 
-    // 2) 过滤：已存在 或 本批次内重复
-    const newBills = []
-    let duplicates = 0
-
-    bills.forEach(bill => {
-      const key = makeBillKey(bill)
-      if (existingKeys[key]) {
-        duplicates++
-        return
-      }
-      existingKeys[key] = true   // 标记，防止同批次内重复导入
-      newBills.push(bill)
+    // 2) 只回下标：数字数组比回传整份账单小两个数量级
+    const dupIdx = []
+    keys.forEach((k, i) => {
+      if (existingKeys[k]) dupIdx.push(i)
     })
 
     return {
       code: 0,
-      message: `新增 ${newBills.length} 条，跳过重复 ${duplicates} 条`,
-      data: newBills,
-      duplicates,
+      message: `检出重复 ${dupIdx.length} 条`,
+      data: { dupIdx, existing: existingCount },
+      duplicates: dupIdx.length,
       existing: existingCount
     }
   } catch (err) {
     console.error('dedupBills error:', err)
-    return { code: -1, message: '去重失败: ' + err.message, data: [], duplicates: 0, existing: 0 }
+    return {
+      code: -1,
+      message: '去重失败: ' + err.message,
+      data: { dupIdx: [], existing: 0 },
+      duplicates: 0,
+      existing: 0
+    }
   }
 }
 
