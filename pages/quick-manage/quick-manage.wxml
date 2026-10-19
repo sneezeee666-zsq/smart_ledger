@@ -8,16 +8,33 @@
 
     <view class="qm-intro">
       <text class="qm-intro-title">常记的</text>
-      <text class="qm-intro-desc">首页「记一笔」面板上的快捷按钮。最多 {{limit}} 个，长按可以拖动排序。</text>
-      <text class="qm-intro-count">{{list.length}} / {{limit}}</text>
+      <text class="qm-intro-desc">首页「记一笔」面板上的快捷按钮，最多 {{limit}} 个。</text>
     </view>
 
+    <!-- ==================== 来源切换 ==================== -->
+    <view class="qm-mode">
+      <view
+        class="qm-mode-item {{mode === 'auto' ? 'active' : ''}}"
+        data-mode="auto"
+        bindtap="onMode"
+      >使用推荐配置</view>
+      <view
+        class="qm-mode-item {{mode === 'manual' ? 'active' : ''}}"
+        data-mode="manual"
+        bindtap="onMode"
+      >使用手动配置</view>
+    </view>
+
+    <text class="qm-mode-tip">
+      {{mode === 'auto' ? '按你的账单自动生成，跟着消费习惯每天更新，不能直接修改' : '自己配的列表，改完立即生效。长按可以拖动排序'}}
+    </text>
+
     <!-- ==================== 列表 ==================== -->
-    <view class="qm-list" wx:if="{{list.length > 0}}">
+    <view class="qm-list {{mode === 'auto' ? 'is-readonly' : ''}}" wx:if="{{list.length > 0}}">
       <view
         wx:for="{{list}}"
         wx:key="key"
-        class="qm-item {{dragIndex === index ? 'is-drag' : ''}} {{item.type === 'income' ? 'is-income' : ''}}"
+        class="qm-item {{dragIndex === index ? 'is-drag' : ''}}"
         style="transform: translateY({{dragIndex === index ? dragY : offsets[index]}}px);"
         data-index="{{index}}"
         bindlongpress="onLongPress"
@@ -34,27 +51,34 @@
           <text class="qm-amount num">¥{{fmt.amount(item.amount)}}</text>
         </view>
 
-        <!-- 上下移动：长按拖动之外的兜底方式（拖动在个别机型上会被系统手势打断） -->
-        <view class="qm-move {{index === 0 ? 'is-off' : ''}}" data-index="{{index}}" data-dir="-1" catchtap="onMove">
-          <text class="qm-move-icon">↑</text>
-        </view>
-        <view class="qm-move {{index === list.length - 1 ? 'is-off' : ''}}" data-index="{{index}}" data-dir="1" catchtap="onMove">
-          <text class="qm-move-icon">↓</text>
-        </view>
-
-        <view class="qm-del" data-index="{{index}}" catchtap="onDelete">✕</view>
+        <!-- 只读模式（推荐）下不给任何编辑入口 -->
+        <block wx:if="{{mode === 'manual'}}">
+          <view class="qm-move {{index === 0 ? 'is-off' : ''}}" data-index="{{index}}" data-dir="-1" catchtap="onMove">
+            <text class="qm-move-icon">↑</text>
+          </view>
+          <view class="qm-move {{index === list.length - 1 ? 'is-off' : ''}}" data-index="{{index}}" data-dir="1" catchtap="onMove">
+            <text class="qm-move-icon">↓</text>
+          </view>
+          <view class="qm-del" data-index="{{index}}" catchtap="onDelete">✕</view>
+        </block>
       </view>
     </view>
 
     <!-- 空状态 -->
     <view class="qm-empty" wx:else>
-      <text class="qm-empty-title">还没有常记的</text>
-      <text class="qm-empty-desc">从下面的推荐里挑一个，或者自己添加</text>
+      <block wx:if="{{mode === 'auto'}}">
+        <text class="qm-empty-title">还没有够频繁的账单</text>
+        <text class="qm-empty-desc">记满 2 次的消费才会被推荐；也可以切到「手动配置」自己定</text>
+      </block>
+      <block wx:else>
+        <text class="qm-empty-title">还没有常记的</text>
+        <text class="qm-empty-desc">从下面的推荐里挑一个，或者自己添加</text>
+      </block>
     </view>
 
-    <!-- ==================== 从账单推荐 ==================== -->
-    <block wx:if="{{recs.length > 0}}">
-      <text class="qm-section">根据你的账单推荐</text>
+    <!-- ==================== 从账单推荐（仅手动模式当候选） ==================== -->
+    <block wx:if="{{mode === 'manual' && recs.length > 0}}">
+      <text class="qm-section">根据你的账单推荐，点一下加入</text>
       <view class="qm-recs">
         <view
           class="qm-rec"
@@ -72,41 +96,44 @@
       </view>
     </block>
 
-    <!-- ==================== 手动添加 ==================== -->
-    <text class="qm-section">手动添加</text>
-    <view class="qm-form">
-      <view class="qm-form-row">
-        <input
-          class="qm-input"
-          value="{{draftTitle}}"
-          placeholder="对方名，如 地铁"
-          placeholder-class="qm-ph"
-          maxlength="{{titleMax}}"
-          bindinput="onDraftTitle"
-        />
-        <input
-          class="qm-input qm-input-amt num"
-          type="digit"
-          value="{{draftAmount}}"
-          placeholder="金额"
-          placeholder-class="qm-ph"
-          bindinput="onDraftAmount"
-        />
-      </view>
-
-      <view class="qm-form-row">
-        <view class="qm-seg">
-          <view class="qm-seg-item {{draftType === 'expense' ? 'active is-expense' : ''}}" data-type="expense" bindtap="onDraftType">支出</view>
-          <view class="qm-seg-item {{draftType === 'income' ? 'active is-income' : ''}}" data-type="income" bindtap="onDraftType">收入</view>
+    <!-- ==================== 手动添加（仅手动模式） ==================== -->
+    <block wx:if="{{mode === 'manual'}}">
+      <text class="qm-section">手动添加</text>
+      <view class="qm-form">
+        <view class="qm-form-row">
+          <input
+            class="qm-input"
+            value="{{draftTitle}}"
+            placeholder="对方名，如 地铁"
+            placeholder-class="qm-ph"
+            maxlength="{{titleMax}}"
+            bindinput="onDraftTitle"
+          />
+          <input
+            class="qm-input qm-input-amt num"
+            type="digit"
+            value="{{draftAmount}}"
+            placeholder="金额"
+            placeholder-class="qm-ph"
+            bindinput="onDraftAmount"
+          />
         </view>
-        <button class="btn-primary qm-add-btn" bindtap="onAddDraft" disabled="{{saving}}">
-          {{saving ? '保存中…' : '添加'}}
-        </button>
+
+        <view class="qm-form-row">
+          <view class="qm-seg">
+            <view class="qm-seg-item {{draftType === 'expense' ? 'active is-expense' : ''}}" data-type="expense" bindtap="onDraftType">支出</view>
+            <view class="qm-seg-item {{draftType === 'income' ? 'active is-income' : ''}}" data-type="income" bindtap="onDraftType">收入</view>
+          </view>
+          <button class="btn-primary qm-add-btn" bindtap="onAddDraft" disabled="{{saving}}">
+            {{saving ? '保存中…' : '添加'}}
+          </button>
+        </view>
       </view>
-    </view>
+    </block>
 
     <view class="qm-foot">
-      <text>改完自动保存，不用点确认。清空后首页面板就不再显示快捷按钮（也不会自动推荐）。</text>
+      <text wx:if="{{mode === 'auto'}}">切到「手动配置」时，会把上面这些推荐项作为起点，你在它基础上改就行。</text>
+      <text wx:else>改完自动保存，不用点确认。手动配置的列表会在你切回「推荐」后保留，再切回来还在。</text>
     </view>
 
   </scroll-view>

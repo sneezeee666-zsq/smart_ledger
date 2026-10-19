@@ -41,6 +41,43 @@
   color: var(--ink-4);
 }
 
+/* ---------- 来源切换：推荐 / 手动 ---------- */
+
+.qm-mode {
+  display: flex;
+  gap: 10rpx;
+  background: var(--surface-3, #F2F5FA);
+  border-radius: 999rpx;
+  padding: 6rpx;
+  margin-bottom: 14rpx;
+}
+
+.qm-mode-item {
+  flex: 1;
+  text-align: center;
+  height: 64rpx;
+  line-height: 64rpx;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  transition: all 0.18s ease;
+}
+
+.qm-mode-item.active {
+  background: var(--surface, #ffffff);
+  color: var(--brand);
+  font-weight: 600;
+  box-shadow: 0 2rpx 8rpx rgba(16, 26, 46, 0.08);
+}
+
+.qm-mode-tip {
+  display: block;
+  margin: 0 8rpx 20rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
 /* ---------- 列表 ---------- */
 
 .qm-list {
@@ -49,6 +86,11 @@
   border-radius: 24rpx;
   padding: 6rpx 0;
   box-shadow: 0 4rpx 16rpx rgba(16, 26, 46, 0.05);
+}
+
+/* 只读（推荐模式）：去掉每项的卡片底色，视觉上明确"这是一整块展示，不是可拖的列表" */
+.qm-list.is-readonly .qm-item {
+  background: transparent;
 }
 
 .qm-item {

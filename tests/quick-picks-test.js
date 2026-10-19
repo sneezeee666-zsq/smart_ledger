@@ -239,6 +239,52 @@ const pick = (title, amount, type) => ({ title, amount, type: type || 'expense' 
   }
 
   // ================================================================
+  console.log('\n=== 4b) 来源切换（auto / manual）===')
+  // ================================================================
+  {
+    reset()
+
+    await userFn.main({ action: 'setQuickPicks', picks: [pick('地铁', 3), pick('瑞幸', 15)], mode: 'manual' })
+    const s1 = await userFn.main({ action: 'getProfile' })
+    t(s1.data.quickPicksMode === 'manual', '显式存 manual')
+
+    // ⚠️ 只切来源、不传 picks → 手动列表必须原样保留
+    const s2 = await userFn.main({ action: 'setQuickPicks', mode: 'auto' })
+    t(s2.code === 0 && s2.data.quickPicksMode === 'auto', '只传 mode 也能保存')
+    const s3 = await userFn.main({ action: 'getProfile' })
+    t(s3.data.quickPicks.length === 2,
+      `只切来源时手动列表没被清空（实际 ${s3.data.quickPicks.length} 条）—— 切回来要能恢复`)
+    t(s3.data.quickPicksMode === 'auto', '来源已切到 auto')
+
+    // 再切回 manual
+    await userFn.main({ action: 'setQuickPicks', mode: 'manual' })
+    const s4 = await userFn.main({ action: 'getProfile' })
+    t(s4.data.quickPicksMode === 'manual' && s4.data.quickPicks.length === 2,
+      '切回 manual 后列表还是原来那两条')
+
+    // 非法来源
+    const s5 = await userFn.main({ action: 'setQuickPicks', mode: 'xx', picks: [] })
+    t(s5.code === -1, `非法 mode 被拒（${s5.message}）`)
+
+    // 什么都没传
+    const s6 = await userFn.main({ action: 'setQuickPicks' })
+    t(s6.code === -1, '既没 picks 也没 mode → 报错（不静默成功）')
+
+    // 老数据兼容：没有 quickPicksMode 字段、但有列表 → 视为 manual
+    reset()
+    DB.users.push({ _id: 'u1', _openid: 'me', uid: 'x', nickname: '', theme: '', quickPicks: [pick('老数据', 9)] })
+    const s7 = await userFn.main({ action: 'getProfile' })
+    t(s7.data.quickPicksMode === 'manual',
+      '老数据（没有 mode 字段但有列表）→ 视为 manual（不加兼容会让老用户突然全变回推荐）')
+
+    // 老数据：既没有 mode 也没有列表 → auto
+    reset()
+    DB.users.push({ _id: 'u2', _openid: 'me', uid: 'x', nickname: '', theme: '' })
+    const s8 = await userFn.main({ action: 'getProfile' })
+    t(s8.data.quickPicksMode === 'auto', '既没 mode 也没列表 → auto')
+  }
+
+  // ================================================================
   console.log('\n=== 5) 云端 getStatistics/quickPicks 的优先级 ===')
   // ================================================================
   {
@@ -276,6 +322,22 @@ const pick = (title, amount, type) => ({ title, amount, type: type || 'expense' 
     const a4 = await statsFn.main({ action: 'quickPicks', forceAuto: true })
     t(a4.data.source === 'auto' && a4.data.picks.some(p => p.title === '地铁'),
       'forceAuto=true 时即使配置过也给推荐（配置页的候选来源）')
+
+    // ⑥ 显式来源优先于"列表存不存在"
+    await userFn.main({ action: 'setQuickPicks', picks: [pick('手动加的', 88)], mode: 'manual' })
+    const b1 = await statsFn.main({ action: 'quickPicks' })
+    t(b1.data.source === 'user' && b1.data.picks[0].title === '手动加的', 'manual 模式用用户列表')
+
+    await userFn.main({ action: 'setQuickPicks', mode: 'auto' })
+    const b2 = await statsFn.main({ action: 'quickPicks' })
+    t(b2.data.source === 'auto', `auto 模式走推荐（即使手动列表还在）`)
+    t(b2.data.picks.some(p => p.title === '地铁'), '推荐里有地铁')
+    t(!b2.data.picks.some(p => p.title === '手动加的'), 'auto 模式下不混入手动列表')
+
+    await userFn.main({ action: 'setQuickPicks', mode: 'manual' })
+    const b3 = await statsFn.main({ action: 'quickPicks' })
+    t(b3.data.source === 'user' && b3.data.picks[0].title === '手动加的',
+      '切回 manual 立刻恢复之前的列表（不用重配）')
 
     // ⑤ 跨用户
     OPENID = 'other'

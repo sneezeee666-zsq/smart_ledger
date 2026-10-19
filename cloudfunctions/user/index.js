@@ -38,6 +38,13 @@ const QUICK_PICK_TITLE_MAX = 60
 const QUICK_PICK_PRODUCT_MAX = 120
 const QUICK_PICK_AMOUNT_MAX = 100000000
 
+// 常记的来源：
+//   'auto'   —— 按账单自动推荐（用户不用管，跟着消费习惯变）
+//   'manual' —— 用户自己配的列表
+// 用**显式字段**而不是列表存不存在来推断：后者无法表达
+// 「用户主动选了推荐模式，但以前配过的列表还要留着」这种情况。
+const QUICK_PICK_MODES = ['auto', 'manual']
+
 // ==================== VIP 会员 ====================
 // 一次性买断、永久有效 —— 不做订阅、不做到期时间。
 // 「会员没有过期」意味着 vip 里只需要一个激活时间，没有"什么时候失效"这个概念，
@@ -171,7 +178,8 @@ function publicProfile(doc) {
     theme: typeof doc.theme === 'string' ? doc.theme : '',
     budget: readBudget(doc),
     vip: readVip(doc),
-    quickPicks: readQuickPicks(doc)
+    quickPicks: readQuickPicks(doc),
+    quickPicksMode: readQuickPicksMode(doc)
   }
 }
 
@@ -186,6 +194,21 @@ function publicProfile(doc) {
  *
  * @returns {Array|null}
  */
+/**
+ * 读「常记的来源」。
+ *
+ * ⚠️ 兼容加这个开关之前的数据：那时没有 quickPicksMode 字段，
+ *    只能按列表存不存在推断 —— 有列表说明用户配过（manual），
+ *    没有就还在用推荐（auto）。不加这个兼容，老用户会突然全变回推荐。
+ *
+ * @returns {string} 'auto' | 'manual'
+ */
+function readQuickPicksMode(doc) {
+  const m = doc && doc.quickPicksMode
+  if (m === 'auto' || m === 'manual') return m
+  return Array.isArray(doc && doc.quickPicks) ? 'manual' : 'auto'
+}
+
 function readQuickPicks(doc) {
   const raw = doc && doc.quickPicks
   if (!Array.isArray(raw)) return null
@@ -417,8 +440,23 @@ function normalizeQuickPickItem(raw) {
  *    要么全成要么全不成。
  */
 async function setQuickPicks(openid, event) {
-  const r = normalizeQuickPicks(event && event.picks)
-  if (!r.ok) return bad(r.message)
+  const mode = event && event.mode
+  if (mode !== undefined && QUICK_PICK_MODES.indexOf(mode) === -1) {
+    return bad('常记的来源只能是 auto 或 manual')
+  }
+
+  // ⚠️ picks 是**可选**的：用户只切「用推荐 / 用手动」时不该被迫把列表也传上来。
+  //    不传就保持原样 —— 这样切到推荐模式后，之前手配的列表还在，
+  //    以后切回来能直接恢复，不用重新配一遍。
+  const hasPicks = !!(event && event.picks !== undefined)
+  let list = null
+  if (hasPicks) {
+    const r = normalizeQuickPicks(event.picks)
+    if (!r.ok) return bad(r.message)
+    list = r.value
+  }
+
+  if (mode === undefined && !hasPicks) return bad('没有要保存的内容')
 
   // 先确保档案存在：用户可能第一次进来就直接配常记的
   const got = await getProfile(openid)
@@ -430,9 +468,13 @@ async function setQuickPicks(openid, event) {
   //    "用户清空了"和"从没配置过"是两种状态 —— 前者不该再回退到自动推荐，
   //    否则用户费劲删完，回首页又冒出来，只会以为删不掉。
   // ⚠️ 归属条件 _openid 必须在（云函数是管理员身份，只按 _id 更新等于开放所有人档案）
+  const patch = { updatedAt: now }
+  if (hasPicks) patch.quickPicks = list
+  if (mode !== undefined) patch.quickPicksMode = mode
+
   const res = await db.collection(USERS)
     .where({ _openid: openid })
-    .update({ data: { quickPicks: r.value, updatedAt: now } })
+    .update({ data: patch })
 
   if (!res || !res.stats || !res.stats.updated) {
     return bad('保存失败，请重试')
@@ -446,7 +488,9 @@ async function setQuickPicks(openid, event) {
       theme: got.data.theme,
       budget: got.data.budget,
       vip: got.data.vip,
-      quickPicks: r.value
+      // 没动的那个字段回传原值，前端 merge 才不会把它覆盖掉
+      quickPicks: hasPicks ? list : got.data.quickPicks,
+      quickPicksMode: mode !== undefined ? mode : got.data.quickPicksMode
     }
   }
 }

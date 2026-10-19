@@ -114,20 +114,35 @@ Component({
 
     // ---------------- 常记的 ----------------
 
+    /**
+     * 拉「常记的」。
+     *
+     * ⚠️ 每次打开面板都要重新拉：用户可能刚在「我的 → 常记的」里改过，
+     *    用一次性缓存会让首页 chips 一直停在旧内容上（改完看不到效果，
+     *    还以为配置没保存成功）。
+     * ⚠️ 刷新时**不要先清空现有 chips**：先把旧的留在屏幕上，新数据回来再替换，
+     *    否则每次打开面板都会先闪一下空白。
+     * ⚠️ 序号防乱序：连续开关面板时只认最后一次请求的结果。
+     */
     async loadPicks() {
-      if (this.data.picksLoaded) return
+      const seq = (this._pickSeq || 0) + 1
+      this._pickSeq = seq
+
       try {
         const res = await wx.cloud.callFunction({
           name: 'getStatistics',
           data: { action: 'quickPicks' }
         })
+        if (seq !== this._pickSeq) return
+
         const r = (res && res.result) || {}
         const picks = (r.code === 0 && r.data && r.data.picks) || []
         this.setData({ picks, picksLoaded: true })
       } catch (err) {
-        // 拿不到高频组合不影响记账本身，静默降级（面板照常可用）
-        console.warn('高频组合加载失败:', err)
-        this.setData({ picks: [], picksLoaded: true })
+        if (seq !== this._pickSeq) return
+        console.warn('常记的加载失败（面板照常可用）:', err)
+        // 网络抖一下不该让快捷按钮全消失：只有"从没成功拉过"才清空
+        if (!this.data.picksLoaded) this.setData({ picks: [], picksLoaded: true })
       }
     },
 

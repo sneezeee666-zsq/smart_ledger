@@ -185,6 +185,39 @@ function loadComp(cloudResult) {
     t(nav && nav.url.indexOf('type=income') !== -1, '带上收支')
   }
 
+  // ================================================================
+  console.log('\n=== 7) 「常记的」每次打开都刷新（配置页改完要能立刻看到）===')
+  // ================================================================
+  {
+    const picksRes = {
+      code: 0,
+      data: {
+        source: 'user',
+        picks: [{ title: '地铁', type: 'expense', amount: 3, product: '', categoryId: '' }]
+      }
+    }
+    const { inst, cfg, calls } = loadComp(picksRes)
+    const pickCalls = () => calls.filter(c => c.data && c.data.action === 'quickPicks').length
+
+    // 直接连调两次：不能有"只拉一次"的门控
+    await inst.loadPicks()
+    const after1 = pickCalls()
+    await inst.loadPicks()
+    const after2 = pickCalls()
+
+    t(after1 === 1, '第一次调用会请求')
+    t(after2 === 2,
+      `第二次调用仍然请求（实际累计 ${after2} 次）—— 用一次性缓存会让配置页改完首页不更新`)
+
+    // 打开面板（visible=true）也要触发拉取
+    cfg.observers.visible.call(inst, true)
+    await new Promise(r => setTimeout(r, 40))
+    t(pickCalls() === 3, `打开面板会触发拉取（实际累计 ${pickCalls()} 次）`)
+
+    // 数据到位后 chips 是新的
+    t(inst.data.picks.length === 1 && inst.data.picks[0].title === '地铁', 'chips 用云端的返回')
+  }
+
   console.log('\n' + (fail ? '❌ ' + fail + ' 项未通过' : '✅ 全部通过'))
   process.exit(fail ? 1 : 0)
 })()

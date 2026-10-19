@@ -1,18 +1,18 @@
 /**
  * 常记的（配置页）
  *
- * 首页「记一笔」面板上那排 chips 就是这里的列表。三件事：
- *   1. **拖动排序**：长按进入拖拽态，松手落位；另有 ↑↓ 作为兜底
- *      （个别机型长按后系统手势会抢走触摸，纯拖动会失效）
- *   2. **增删**：从"根据账单推荐"里一键加，或手动填对方名 + 金额
- *   3. **自动保存**：每次改完立刻写云端，不用点"确认"
+ * 首页「记一笔」面板上那排 chips 就是这里配的。两种来源，由用户显式选择：
+ *   - **使用推荐配置**（auto）：云端按近 90 天账单自动聚合，只读
+ *     （每天跟着消费习惯变，用户不用管）
+ *   - **使用手动配置**（manual）：自己配的列表，可增删、可拖动排序
  *
- * 几个关键取舍：
- *   - 保存是**整套覆盖**（不是增删单条）：排序本质上是"整个顺序都变了"，
- *     逐条增删表达不了顺序。详见 cloudfunctions/user 的 setQuickPicks。
- *   - 保存失败要**回滚界面**：否则用户看到"已经改了"，下次进来又变回去。
- *   - 从没配置过时，列表初始为"按账单推荐的前 10 个" —— 一进页面就有东西可拖，
- *     而不是面对一个空列表。用户任何一次修改都会把它变成"已配置"。
+ * ⚠️ 为什么用显式字段存「来源」，而不是靠"列表存不存在"推断：
+ *    后者表达不了「用户选了推荐模式，但以前配过的列表还要留着」——
+ *    切回手动时应该能恢复之前的列表，而不是从零再配一遍。
+ *
+ * ⚠️ 为什么手动列表和展示列表分开两份（myList / list）：
+ *    auto 模式下展示的是推荐内容，但那**不能覆盖**用户手配的列表。
+ *    混成一份的话，用户看一眼推荐模式，手配的列表就被冲掉了。
  */
 
 const theme = require('../../utils/theme.js')
@@ -27,8 +27,14 @@ Page({
     limit: qp.LIMIT,
     titleMax: qp.TITLE_MAX,
 
-    list: [],
-    recs: [],
+    // 'auto' 用推荐 | 'manual' 用手配
+    mode: 'auto',
+
+    myList: [],       // 用户手动配的（切到推荐时不覆盖它）
+    autoPicks: [],    // 云端推荐（只读）
+    list: [],         // 当前展示 = auto ? autoPicks : myList
+    recs: [],         // 手动模式下"推荐里还没加进列表"的候选
+
     // 每项的竖向位移（px）。WXML 里不能调函数算，只能预先算好放数组里
     offsets: [],
 
@@ -62,34 +68,69 @@ Page({
   // ==================== 加载 ====================
 
   async loadAll() {
-    // 1) 本机/云端的用户配置。null = 从没配置过
-    const mine = user.quickPicks()
+    const mine = user.quickPicks()          // null = 从没配过
+    const mode = user.quickPicksMode()      // 'auto' | 'manual'
 
-    // 2) 按账单的推荐（forceAuto 强制走自动聚合，即使已经配置过也要拿推荐当候选）
-    let recs = []
+    // 推荐内容：forceAuto 强制走自动聚合（即使当前是手动模式也要拿它当候选）
+    let recsRaw = []
     try {
       const res = await wx.cloud.callFunction({
         name: 'getStatistics',
         data: { action: 'quickPicks', forceAuto: true }
       })
       const r = (res && res.result) || {}
-      recs = (r.code === 0 && r.data && r.data.picks) || []
+      recsRaw = (r.code === 0 && r.data && r.data.picks) || []
     } catch (err) {
       console.warn('推荐加载失败（不影响手动配置）:', err)
     }
 
-    // 从没配过 → 用推荐的前 N 个作为初始列表，一进页面就有东西可拖
-    const list = qp.normalizeList(mine !== null ? mine : recs.slice(0, qp.LIMIT))
-
-    // 推荐里已经在列表中的不再展示
-    const rest = recs.filter(r => !qp.has(list, r))
+    const autoPicks = qp.normalizeList(recsRaw)
+    const myList = qp.normalizeList(mine || [])
+    const shown = mode === 'auto' ? autoPicks : myList
 
     this.setData({
-      list: withKey(list),
-      offsets: list.map(() => 0),
-      recs: withKey(rest),
+      mode,
+      autoPicks: withKey(autoPicks),
+      myList: withKey(myList),
+      list: withKey(shown),
+      recs: withKey(recsOf(autoPicks, myList)),
+      offsets: shown.map(() => 0),
       loaded: true
     })
+  },
+
+  // ==================== 来源切换 ====================
+
+  /**
+   * 切换「推荐 / 手动」。
+   *
+   * - 切到推荐：**只存来源，不动手动列表** —— 切回来能恢复之前的配置
+   * - 切到手动：如果手配列表还是空的，就把当前展示的推荐当作起点
+   *   （否则用户切过来看到空列表，还得一条条加回来）
+   */
+  async onMode(e) {
+    const mode = e.currentTarget.dataset.mode
+    if (mode === this.data.mode || this.data.saving) return
+
+    if (mode === 'auto') {
+      const shown = this.data.autoPicks
+      this.setData({
+        mode: 'auto',
+        list: shown,
+        offsets: shown.map(() => 0),
+        dragIndex: -1,
+        dragY: 0,
+        dragging: false
+      })
+      await this.persist(null, 'auto')
+      return
+    }
+
+    let next = this.data.myList
+    if (next.length === 0 && this.data.autoPicks.length > 0) {
+      next = this.data.autoPicks.slice(0, qp.LIMIT)
+    }
+    await this.applyManual(next, 'manual')
   },
 
   // ==================== 保存（带回滚） ====================
@@ -98,46 +139,73 @@ Page({
    * 写云端。失败时把界面回滚到修改前 —— 否则用户看到"已经改了"，
    * 下次进来又变回去，会以为这个功能坏了。
    *
-   * @param {Array} next 修改后的列表
+   * @param {Array|null} list 传 null = 只切来源、不动列表
+   * @param {string} mode 'auto' | 'manual'
    */
-  async persist(next) {
-    const prev = this.data.list
+  async persist(list, mode) {
+    const prev = {
+      mode: this.data.mode,
+      myList: this.data.myList,
+      list: this.data.list,
+      recs: this.data.recs
+    }
 
-    this.setData({
-      list: withKey(next),
-      offsets: next.map(() => 0),
-      dragIndex: -1,
-      dragY: 0,
-      dragging: false,
-      saving: true
-    })
+    this.setData({ saving: true })
 
     try {
-      // 存之前去掉只用于渲染的 key 字段
-      await user.setQuickPicks(qp.normalizeList(next))
+      await user.setQuickPicks(
+        list === null ? null : qp.normalizeList(list),
+        mode
+      )
       this.setData({ saving: false })
     } catch (err) {
       wx.showToast({ title: (err && err.message) || '保存失败，请重试', icon: 'none' })
-      this.setData({ list: prev, saving: false })
+      this.setData(Object.assign({ saving: false }, prev))
     }
   },
 
-  // ==================== 拖动排序 ====================
+  /**
+   * 改手动列表并保存。
+   * @param {Array} next 新的手动列表
+   * @param {string} [mode] 不传则沿用当前模式
+   */
+  async applyManual(next, mode) {
+    const myList = withKey(qp.normalizeList(next))
+    this.setData({
+      myList,
+      list: myList,
+      recs: withKey(recsOf(this.data.autoPicks, qp.normalizeList(next))),
+      offsets: myList.map(() => 0),
+      dragIndex: -1,
+      dragY: 0,
+      dragging: false
+    })
+    await this.persist(qp.normalizeList(next), mode || 'manual')
+  },
+
+  // ==================== 拖动排序（仅手动模式） ====================
+
+  /** 只读（推荐）模式下所有编辑入口都该失效 —— 即使事件被绑上了 */
+  isManual() {
+    return this.data.mode === 'manual'
+  },
 
   onLongPress(e) {
-    if (this.data.list.length < 2) return
+    if (!this.isManual()) return
+    if (this.data.myList.length < 2) return
+
     const index = Number(e.currentTarget.dataset.index)
     if (isNaN(index)) return
 
     this._startY = (e.touches && e.touches[0] ? e.touches[0].clientY : 0)
-    // 轻微振动：让用户知道"已经进入拖拽态"（否则只是长按没反应会以为卡住）
+    // 轻微振动：让用户知道"已经进入拖拽态"（否则长按没反馈会以为卡住）
     if (wx.vibrateShort) wx.vibrateShort({ type: 'light' })
 
     this.setData({
       dragIndex: index,
       dragY: 0,
       dragging: true,
-      offsets: this.data.list.map(() => 0)
+      offsets: this.data.myList.map(() => 0)
     })
   },
 
@@ -147,11 +215,11 @@ Page({
 
     const y = e.touches && e.touches[0] ? e.touches[0].clientY : this._startY
     const dy = y - this._startY
-    const len = this.data.list.length
+    const len = this.data.myList.length
     const to = clamp(from + Math.round(dy / this._step), 0, len - 1)
 
     // 其他项给一个反向位移，视觉上"让出空位"
-    const offsets = this.data.list.map((_, i) => {
+    const offsets = this.data.myList.map((_, i) => {
       if (i === from) return 0
       if (from < to && i > from && i <= to) return -this._step
       if (from > to && i >= to && i < from) return this._step
@@ -165,53 +233,52 @@ Page({
     const from = this.data.dragIndex
     if (from < 0) return
 
-    const len = this.data.list.length
+    const len = this.data.myList.length
     const to = clamp(from + Math.round(this.data.dragY / this._step), 0, len - 1)
 
     // 先收起拖拽态（位移归零），再按需保存
-    this.setData({ dragIndex: -1, dragY: 0, dragging: false, offsets: this.data.list.map(() => 0) })
+    this.setData({ dragIndex: -1, dragY: 0, dragging: false, offsets: this.data.myList.map(() => 0) })
 
-    if (to !== from) this.persist(qp.move(this.data.list, from, to))
+    if (to !== from) this.applyManual(qp.move(this.data.myList, from, to))
   },
 
   /** ↑↓ 兜底排序（长按拖动被系统手势打断时用） */
   onMove(e) {
+    if (!this.isManual()) return
     const index = Number(e.currentTarget.dataset.index)
     const dir = Number(e.currentTarget.dataset.dir)
     if (isNaN(index) || isNaN(dir)) return
 
     const to = index + dir
-    if (to < 0 || to >= this.data.list.length) return
-    this.persist(qp.move(this.data.list, index, to))
+    if (to < 0 || to >= this.data.myList.length) return
+    this.applyManual(qp.move(this.data.myList, index, to))
   },
 
-  // ==================== 删除 / 添加 ====================
+  // ==================== 删除 / 添加（仅手动模式） ====================
 
   onDelete(e) {
+    if (!this.isManual()) return
     const index = Number(e.currentTarget.dataset.index)
     if (isNaN(index)) return
-    this.persist(qp.removeAt(this.data.list, index))
+    this.applyManual(qp.removeAt(this.data.myList, index))
   },
 
   /** 从推荐里加一条 */
   onAddRec(e) {
+    if (!this.isManual()) return
     const index = Number(e.currentTarget.dataset.index)
     const item = this.data.recs[index]
     if (!item) return
 
-    const r = qp.add(this.data.list, item)
+    const r = qp.add(this.data.myList, item)
     if (!r.ok) return this.toastFail(r.reason)
-
-    // 加进列表后，从推荐里移除（不能重复添加）
-    const recs = this.data.recs.slice()
-    recs.splice(index, 1)
-    this.setData({ recs })
-    this.persist(r.list)
+    this.applyManual(r.list)
   },
 
   /** 手动添加 */
   onAddDraft() {
-    const r = qp.add(this.data.list, {
+    if (!this.isManual()) return
+    const r = qp.add(this.data.myList, {
       title: this.data.draftTitle,
       amount: this.data.draftAmount,
       type: this.data.draftType
@@ -219,7 +286,7 @@ Page({
     if (!r.ok) return this.toastFail(r.reason)
 
     this.setData({ draftTitle: '', draftAmount: '' })
-    this.persist(r.list)
+    this.applyManual(r.list)
   },
 
   toastFail(reason) {
@@ -276,4 +343,9 @@ function clamp(v, min, max) {
  */
 function withKey(list) {
   return (Array.isArray(list) ? list : []).map(x => Object.assign({}, x, { key: qp.keyOf(x) }))
+}
+
+/** 推荐里还没被加进手动列表的那些（作为候选展示） */
+function recsOf(autoPicks, myList) {
+  return (Array.isArray(autoPicks) ? autoPicks : []).filter(r => !qp.has(myList, r))
 }

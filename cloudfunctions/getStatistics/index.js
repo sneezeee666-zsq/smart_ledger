@@ -557,8 +557,21 @@ async function fetchUserPicks(openid) {
     .get()
 
   const doc = res && res.data && res.data.length ? res.data[0] : null
+
+  // 来源（'auto' 用推荐 / 'manual' 用手配）。
+  // ⚠️ 与 cloudfunctions/user 的 readQuickPicksMode **同口径**，改一处必须改另一处：
+  //    显式字段优先；没有字段（加开关之前的老数据）按"有没有列表"推断 ——
+  //    有列表说明用户配过，没有就还在用推荐。
+  const mode = (doc && (doc.quickPicksMode === 'auto' || doc.quickPicksMode === 'manual'))
+    ? doc.quickPicksMode
+    : (doc && Array.isArray(doc.quickPicks) ? 'manual' : 'auto')
+
+  // 选了「推荐」→ 返回 null，由调用方走自动聚合
+  if (mode === 'auto') return null
+
   const raw = doc && doc.quickPicks
-  if (!Array.isArray(raw)) return null
+  // manual 但没有列表 = 用户把列表清空了 → 空数组（**不回退推荐**）
+  if (!Array.isArray(raw)) return []
 
   // 只保留画 chip 需要的字段，不把 users 文档里的其它东西带出去
   return raw.slice(0, QUICK_PICK_LIMIT).map(x => ({

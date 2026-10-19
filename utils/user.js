@@ -36,7 +36,7 @@ const BUDGET_DECIMALS = 2
 // ⚠️ 嵌套对象（{budget:{amount}}）看着更整齐，但"只改一个子字段"时
 //    必须区分「这次没传」和「这次传了 null」，稍有不慎就会把没动过的字段清零。
 //    扁平结构下 undefined 天然表示"没传"，判断只有一处。
-const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, vipSince: 0, quickPicks: null }
+const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, vipSince: 0, quickPicks: null, quickPicksMode: 'auto' }
 
 // 本机缓存（进程内），避免每次读 storage
 let cached = null
@@ -63,7 +63,9 @@ function readStorage() {
         budgetTime: hasBudget ? (Number(raw.budgetTime) || 0) : 0,
         vipSince: Number(raw.vipSince) > 0 ? Number(raw.vipSince) : 0,
         // null = 没配置过「常记的」；数组（含空数组）= 配置过
-        quickPicks: Array.isArray(raw.quickPicks) ? raw.quickPicks : null
+        quickPicks: Array.isArray(raw.quickPicks) ? raw.quickPicks : null,
+        // 'auto' 按账单推荐 | 'manual' 用户自己配
+        quickPicksMode: raw.quickPicksMode === 'manual' ? 'manual' : 'auto'
       }
     }
   } catch (e) {
@@ -136,6 +138,12 @@ function merge(partial) {
     quickPicks = Array.isArray(p.quickPicks) ? p.quickPicks : null
   }
 
+  // 来源三态：undefined = 这次没动；'auto'/'manual' = 已切换
+  let quickPicksMode = cur.quickPicksMode
+  if (p.quickPicksMode !== undefined) {
+    quickPicksMode = p.quickPicksMode === 'manual' ? 'manual' : 'auto'
+  }
+
   return writeStorage({
     uid: str(p.uid, cur.uid),
     nickname: str(p.nickname, cur.nickname),
@@ -143,7 +151,8 @@ function merge(partial) {
     budget: budget,
     budgetTime: budgetTime,
     vipSince: vipSince,
-    quickPicks: quickPicks
+    quickPicks: quickPicks,
+    quickPicksMode: quickPicksMode
   })
 }
 
@@ -386,26 +395,40 @@ function quickPicks() {
 }
 
 /**
+ * 「常记的」的来源。
+ * @returns {string} 'auto'（按账单推荐）| 'manual'（用户自己配）
+ */
+function quickPicksMode() {
+  return current().quickPicksMode === 'manual' ? 'manual' : 'auto'
+}
+
+/**
  * 保存「常记的」（整套覆盖 —— 排序/增删都走这里）。
  *
  * ⚠️ 与 setNickname 一样：**说了算的是云函数**，本机只是镜像。
  *    传空数组是合法操作（表示清空），不会被当成"没配置"。
  *
- * @param {Array} list
- * @returns {Promise<Array>} 云端归一化后的列表
+ * @param {Array|null} list 手动列表。传 null = 只切来源、不动列表
+ *                          （切到「推荐」时用，之前配的列表要留着，切回来能恢复）
+ * @param {string} [mode] 'auto' | 'manual'，不传表示这次不改来源
+ * @returns {Promise<{list: Array, mode: string}>}
  */
-function setQuickPicks(list) {
-  const arr = Array.isArray(list) ? list : []
+function setQuickPicks(list, mode) {
+  const data = { action: 'setQuickPicks' }
+  if (list !== null && list !== undefined) {
+    data.picks = Array.isArray(list) ? list : []
+  }
+  if (mode === 'auto' || mode === 'manual') data.mode = mode
 
   return wx.cloud.callFunction({
     name: 'user',
-    data: { action: 'setQuickPicks', picks: arr }
+    data: data
   }).then(res => {
     const r = (res && res.result) || {}
     if (r.code !== 0 || !r.data) throw new Error(r.message || '保存失败，请重试')
     // merge 会处理三态：这里传的是数组（含空数组），所以本机会原样记下
-    merge({ quickPicks: r.data.quickPicks })
-    return r.data.quickPicks || []
+    merge({ quickPicks: r.data.quickPicks, quickPicksMode: r.data.quickPicksMode })
+    return { list: r.data.quickPicks || [], mode: r.data.quickPicksMode }
   })
 }
 
@@ -424,6 +447,7 @@ module.exports = {
   budget: budget,
   budgetTime: budgetTime,
   quickPicks: quickPicks,
+  quickPicksMode: quickPicksMode,
   setQuickPicks: setQuickPicks,
   validateBudget: validateBudget,
   setBudget: setBudget,
