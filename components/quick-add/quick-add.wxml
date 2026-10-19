@@ -1,22 +1,22 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<!-- 半屏快捷记账面板
+<!-- 半屏快捷记账面板（**从顶部往下滑出**）
+     ⚠️ 为什么放在上面而不是从底部弹：
+        键盘本身就是从屏幕底部升起的。面板如果也在底部，键盘一来就得把面板
+        往上顶，两层叠在一起，视觉上"弹来弹去"。放在上半屏 → 面板占上半屏、
+        键盘占下半屏，两者天然不重叠，连"按键盘高度顶面板"的逻辑都不需要了。
      ⚠️ 为什么用半屏而不是跳整页：手动记账是"补记零星几笔"，
         跳页会打断首页的浏览上下文（记完还要返回来）。
         半屏记完即关，停留首页，下一步能看到刚记的那笔。
 
      ⚠️ 为什么用 class 控制显隐而不是 wx:if：
         wx:if 的节点是首次渲染，**不会触发 transition**，滑动动画会没有；
-        常驻 DOM + translateY 才有真正的上滑过渡。
-     ⚠️ 键盘适配：面板是 fixed 定位，系统键盘不会自动避让，
-        必须接 bindfocus 的 e.detail.height，用 CSS 变量 --kb 把它顶上去。
-        input 要设 adjust-position="{{false}}"，否则系统推页面 + 我们顶面板
-        会叠加成"面板飞出屏幕"。 -->
+        常驻 DOM + translateY 才有真正的下滑过渡。
+     ⚠️ input 仍设 adjust-position="{{false}}"：面板在上半屏本来不会被键盘遮挡，
+        关掉它只是为了防止系统做任何多余的页面位移。 -->
 <view class="qa-mask {{visible ? 'is-on' : ''}}" bindtap="onClose" catchtouchmove="noop"></view>
 
-<view class="qa-panel {{visible ? 'is-on' : ''}}" style="--kb: {{kbHeight}}px;">
-  <view class="qa-grip"></view>
-
+<view class="qa-panel {{visible ? 'is-on' : ''}}">
   <view class="qa-head">
     <text class="qa-title">记一笔</text>
     <view class="qa-close" bindtap="onClose" hover-class="qa-close-hover" hover-stay-time="60">✕</view>
@@ -49,8 +49,6 @@
       adjust-position="{{false}}"
       cursor-spacing="0"
       bindinput="onAmountInput"
-      bindfocus="onKeyboardShow"
-      bindblur="onKeyboardHide"
       bindconfirm="onSave"
       confirm-type="done"
     />
@@ -89,8 +87,6 @@
       placeholder-class="qa-ph"
       adjust-position="{{false}}"
       bindinput="onTitleInput"
-      bindfocus="onKeyboardShow"
-      bindblur="onKeyboardHide"
     />
   </view>
 
@@ -102,4 +98,6 @@
       disabled="{{submitting}}"
     >{{submitting ? '保存中…' : '保存'}}</button>
   </view>
+  <view class="qa-grip"></view>
+
 </view>

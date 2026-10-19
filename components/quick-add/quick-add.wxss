@@ -23,28 +23,35 @@
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* 顶部滑出：贴在导航栏下沿 */
+  top: 0;
   z-index: 901;
   background: var(--surface, #ffffff);
-  border-radius: 28rpx 28rpx 0 0;
-  padding: 12rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
-  box-shadow: 0 -10rpx 40rpx rgba(16, 26, 46, 0.12);
-  /* 收起：整体滑到屏幕外（百分比是相对自身高度） */
-  transform: translateY(100%);
+  /* 上沿是直角（贴着导航栏），下沿才是圆角 —— 和"从上面拉下来"的方向一致 */
+  border-radius: 0 0 28rpx 28rpx;
+  padding: 18rpx 32rpx 20rpx;
+  /* 面板在上半屏，键盘在下半屏；万一内容超长只滚动面板本身 */
+  max-height: 62vh;
+  overflow-y: auto;
+  /* 阴影朝下投，视觉上才是"压在上面的一张卡片" */
+  box-shadow: 0 10rpx 40rpx rgba(16, 26, 46, 0.14);
+  /* 收起：整体上移出屏幕（百分比是相对自身高度） */
+  transform: translateY(-100%);
   transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/* 展开：归位后再减去键盘高度（--kb 由 JS 通过内联 style 传入） */
+/* 展开：滑回原位。放在上半屏就不需要再按键盘高度做位移了 */
 .qa-panel.is-on {
-  transform: translateY(calc(0px - var(--kb, 0px)));
+  transform: translateY(0);
 }
 
+/* 拖拽条在底部：从上往下拉的卡片，暗示"往上推可收起" */
 .qa-grip {
   width: 72rpx;
   height: 8rpx;
   border-radius: 4rpx;
   background: var(--line-strong, #DDE4EF);
-  margin: 0 auto 12rpx;
+  margin: 14rpx auto 0;
 }
 
 .qa-head {

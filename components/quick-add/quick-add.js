@@ -4,19 +4,20 @@
  * 设计目标：把"补记零星一笔"压缩到**输金额 → 保存**两步，且不离开首页。
  *
  * 三个刻意的取舍：
- *  1. **只放必要字段**：收支 + 金额 + 对方（可选）。交易类型/支付方式/状态/时间
+ *  1. **面板从上往下滑出**（不是从底部弹）：
+ *     键盘本身就是从屏幕底部升起的，面板若在底部，键盘一来就得把面板往上顶，
+ *     两层叠在一起"弹来弹去"。放上半屏 → 面板占上半屏、键盘占下半屏，
+ *     天然不重叠，连"按键盘高度顶面板"的逻辑都不需要。
+ *  2. **只放必要字段**：收支 + 金额 + 对方（可选）。交易类型/支付方式/状态/时间
  *     全部走默认值（云端 action='add' 会补），想改就点「更多选项」进完整页。
- *  2. **常记的一键复用**：chips 来自云端按近 90 天聚合的高频组合，
+ *  3. **常记的一键复用**：chips 来自云端按近 90 天聚合的高频组合，
  *     点一下预填、长按直接存 —— 每天买同一杯咖啡只需长按一次。
- *  3. **键盘自己避让**：面板是 fixed 定位，系统键盘不会自动推它，
- *     必须接 bindfocus 的 e.detail.height 自己顶上去（input 要关掉 adjust-position，
- *     否则系统推页面 + 我们顶面板会叠加成"面板飞出屏幕"）。
  */
 
 const theme = require('../../utils/theme.js')
 const form = require('../../utils/bill-form.js')
 
-// 面板上滑动画时长（ms）。聚焦要等动画走完，否则键盘会被动画打断
+// 面板下滑动画时长（ms）。聚焦要等动画走完，否则键盘会被动画打断
 const SLIDE_MS = 260
 
 Component({
@@ -45,9 +46,7 @@ Component({
 
     submitting: false,
     // 打开面板后自动聚焦金额输入
-    focusAmount: false,
-    // 键盘高度（px）：面板要顶这么高，否则保存按钮被键盘盖住
-    kbHeight: 0
+    focusAmount: false
   },
 
   observers: {
@@ -58,7 +57,6 @@ Component({
           amount: '',
           title: '',
           submitting: false,
-          kbHeight: 0,
           // 先置 false 再置 true，保证同一个面板第二次打开也能触发聚焦
           focusAmount: false
         })
@@ -69,7 +67,7 @@ Component({
         this.loadPicks()
       } else {
         if (this._focusTimer) { clearTimeout(this._focusTimer); this._focusTimer = null }
-        this.setData({ focusAmount: false, kbHeight: 0 })
+        this.setData({ focusAmount: false })
       }
     }
   },
@@ -85,17 +83,6 @@ Component({
       this.triggerEvent('close')
     },
 
-    // ---------------- 键盘 ----------------
-
-    onKeyboardShow(e) {
-      // e.detail.height 是系统键盘高度（px）
-      const h = (e && e.detail && e.detail.height) || 0
-      if (h !== this.data.kbHeight) this.setData({ kbHeight: h })
-    },
-
-    onKeyboardHide() {
-      if (this.data.kbHeight !== 0) this.setData({ kbHeight: 0 })
-    },
 
     // ---------------- 输入 ----------------
 
