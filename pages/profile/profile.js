@@ -70,8 +70,6 @@ Page({
 
     // 昵称
     nickname: INITIAL_PROFILE.nickname,
-    // 会员标识（首帧读本机缓存，云端档案回来后由 applyVip 更新）
-    isVip: INITIAL_PROFILE.vipSince > 0,
     showNickSheet: false,
     nickDraft: '',
     nickLen: 0,
@@ -85,8 +83,6 @@ Page({
 
     // 关于（作者 / 联系方式 / 版权）
     showAboutSheet: false,
-    // 赞赏弹层
-    showRewardSheet: false,
     author: AUTHOR,
     email: EMAIL,
     github: GITHUB,
@@ -116,7 +112,6 @@ Page({
     }
     this.applyTheme()
     this.applyNickname()
-    this.applyVip()
     this.loadUserStats()
   },
 
@@ -155,28 +150,6 @@ Page({
       if (seq !== this._userSeq) return
       apply(p)
     })
-  },
-
-  /** 会员标识：与昵称同一条链路（首帧缓存 → 云端档案回写） */
-  applyVip() {
-    const apply = (p) => {
-      const vip = !!(p && p.vipSince > 0)
-      if (vip === this.data.isVip) return
-      this.setData({ isVip: vip })
-    }
-
-    apply(user.current())
-
-    const seq = (this._userSeq || 0) + 1
-    this._userSeq = seq
-    user.load().then(p => {
-      if (seq !== this._userSeq) return
-      apply(p)
-    })
-  },
-
-  goToVip() {
-    wx.navigateTo({ url: '/pages/vip/vip' })
   },
 
   openNickSheet() {
@@ -499,47 +472,6 @@ Page({
   /** 常记的配置页 */
   goQuickPicks() {
     wx.navigateTo({ url: '/pages/quick-manage/quick-manage' })
-  },
-
-  // ---------------- 赞赏支持 ----------------
-
-  showReward() {
-    this.setData({ showRewardSheet: true })
-  },
-
-  closeRewardSheet() {
-    this.setData({ showRewardSheet: false })
-  },
-
-  /**
-   * 打开赞赏码的全屏预览（在里面长按即可识别二维码）。
-   *
-   * ⚠️ 为什么不直接在弹层里长按：<image> 组件不支持长按识别二维码，
-   *    只有 wx.previewImage 的全屏预览才有「识别二维码」入口 ——
-   *    这是小程序里展示收款码唯一官方认可的路径。
-   * ⚠️ 为什么先拷成临时文件：部分机型的 previewImage 对**包内路径**支持不稳
-   *    （预览黑屏/打不开），先 readFile 包内文件再 writeFile 到
-   *    USER_DATA_PATH，用临时路径预览在双端都稳；拷贝失败再退回包内路径试一次。
-   */
-  previewRewardQr() {
-    const SRC = '/assets/icons/reward-qr.png'
-    const tmp = wx.env.USER_DATA_PATH + '/reward-qr.png'
-    const fs = wx.getFileSystemManager()
-
-    const preview = (path) => wx.previewImage({ urls: [path] })
-
-    fs.readFile({
-      filePath: SRC,
-      success: (res) => {
-        fs.writeFile({
-          filePath: tmp,
-          data: res.data,
-          success: () => preview(tmp),
-          fail: () => preview(SRC)      // 拷不进去就退回包内路径
-        })
-      },
-      fail: () => preview(SRC)
-    })
   },
 
   /**

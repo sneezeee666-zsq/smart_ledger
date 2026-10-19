@@ -8,7 +8,6 @@
     "pages/add-bill/add-bill",
     "pages/budget/budget",
     "pages/quick-manage/quick-manage",
-    "pages/vip/vip",
     "pages/profile/profile"
   ],
   "window": {
@@ -44,7 +43,7 @@
       },
       {
         "pagePath": "pages/ai/ai",
-        "text": "AI分析",
+        "text": "智能分析",
         "iconPath": "assets/icons/ai.png",
         "selectedIconPath": "assets/icons/ai-active-green.png"
       },

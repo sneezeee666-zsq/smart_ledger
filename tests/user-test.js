@@ -225,8 +225,8 @@ async function testIsolation() {
   t(!('_openid' in r.data), '返回体里没有 _openid（它是账号身份证，客户端不需要）')
   t(!('_id' in r.data) && !('createdAt' in r.data) && !('updatedAt' in r.data),
     '返回体里没有 _id / 时间戳这些内部字段')
-  t(Object.keys(r.data).sort().join(',') === 'budget,nickname,theme,uid,vip',
-    `返回体字段恰好是 uid/nickname/theme/budget/vip（实际 ${Object.keys(r.data).sort().join(',')}）`)
+  t(Object.keys(r.data).sort().join(',') === 'budget,nickname,theme,uid',
+    `返回体字段恰好是 uid/nickname/theme/budget（实际 ${Object.keys(r.data).sort().join(',')}）`)
 
   // 拿不到 openid 时必须明确失败，不能默默建一条没主的档案
   OPENID = ''

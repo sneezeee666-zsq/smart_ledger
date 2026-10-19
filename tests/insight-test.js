@@ -178,9 +178,8 @@ function addBill(ts, type, amount, categoryId, category, title) {
 
 function reset() {
   DB.bills = []
-  // v0.8.0 起 insight 有会员门控：测试里的 "me" 默认是会员，
-  // 门控本身的行为由 tests/vip-test.js 验证，这里不重复
-  DB.users = [{ _id: 'u0', _openid: 'me', uid: 'u0', vip: { since: 1 }, budget: null }]
+  // 档案里有一条记录即可（智能分析读的是 bills，users 只用来取预算）
+  DB.users = [{ _id: 'u0', _openid: 'me', uid: 'u0', budget: null }]
   seq = 0
   billSeq = 0
 }
@@ -783,7 +782,7 @@ async function main() {
   //    规则引擎会返回空数组 —— 这是刻意的，不是 bug）。
   freeze(2026, 10, 31, 10, 0)
   reset()
-  DB.users[0].budget = { amount: 1000, updateTime: 0 }   // reset() 已放入会员档案，这里只补预算
+  DB.users[0].budget = { amount: 1000, updateTime: 0 }   // reset() 已放入档案，这里只补预算
   addBill(bjTs(2026, 10, 1, 12, 0), 'expense', 888, 'shopping', '购物', '某商城')  // 窗口外、但属于本月
   addBill(bjTs(2026, 10, 20, 12, 0), 'expense', 200, 'food', '餐饮', '美团')
   addBill(bjTs(2026, 10, 21, 12, 0), 'expense', 150, 'food', '餐饮', '美团')
@@ -808,7 +807,7 @@ async function main() {
   const monthStart = bjTs(2026, 10, 1, 0, 0)
   t(prevStart <= monthStart, '取数起点早于本月 1 号（否则窗口外那笔根本读不到）')
 
-  DB.users = [{ _id: 'u0', _openid: 'me', uid: 'u0', vip: { since: 1 } }]   // 会员但没有预算
+  DB.users = [{ _id: 'u0', _openid: 'me', uid: 'u0' }]   // 有档案但没有预算
   const r4 = await runInsight()
   t(!r4.data.insights.some(x => x.id === 'budget'), '没设预算 → 不出现预算结论')
 

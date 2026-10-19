@@ -17,17 +17,17 @@
     </view>
 
     <button
-      class="hero-cta {{locked ? 'hero-cta-vip' : ''}}"
+      class="hero-cta"
       hover-class="hero-cta-hover"
       hover-stay-time="60"
-      bindtap="{{locked ? 'goVip' : 'onAnalyze'}}"
+      bindtap="onAnalyze"
       disabled="{{analyzing}}"
-    >{{locked ? '开通会员解锁 · ¥18 永久' : (analyzing ? '深度思考中…请稍后…' : '一键分析账单')}}</button>
+    >{{analyzing ? '深度思考中…请稍后…' : '一键分析账单'}}</button>
 
-    <text class="hero-note">{{locked ? '会员功能 · 一次开通永久有效' : ('分析范围：' + scopeText)}}</text>
+    <text class="hero-note">分析范围：{{scopeText}}</text>
 
-    <!-- 分析范围切换：近 7 天 / 近 30 天（仅会员可用，锁定态不展示） -->
-    <view class="scope-switch" wx:if="{{!locked}}">
+    <!-- 分析范围切换：近 7 天 / 近 30 天 -->
+    <view class="scope-switch">
       <view
         class="scope-item {{scopeDays === item.days ? 'active' : ''}}"
         wx:for="{{scopes}}"
@@ -41,90 +41,66 @@
   <!-- ==================== 分析结果 ==================== -->
   <view class="card sec result-card">
 
-    <!-- ⚠️ 会员遮罩：盖在结果区上。锁定时按钮/结论全部不可用，
-         但页面结构照常渲染 —— 用户能看到"这里有什么"，才知道解锁了能得到什么。
-         遮罩用模糊 + 锁定卡，不用 alert —— 弹窗关掉就什么都没了。 -->
-    <view class="lock-mask" wx:if="{{locked}}">
-      <view class="lock-card">
-        <image class="lock-icon" src="/assets/icons/mi-vip.png" mode="aspectFit" />
-        <text class="lock-title">开通会员解锁智能分析</text>
-        <text class="lock-desc">¥18 一次开通，永久有效</text>
-        <button class="btn-primary btn-sm lock-btn" bindtap="goVip" hover-class="lock-btn-hover">立即开通</button>
+    <view class="card-head">
+      <text class="card-title">分析结果</text>
+      <text class="more-link" wx:if="{{analyzed && !analyzing && !loadFailed}}" bindtap="onAnalyze">重新分析</text>
+    </view>
+
+    <!-- 还没点过：说明按钮能干什么 -->
+    <view class="empty-state" wx:if="{{!analyzed}}">
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">还没有分析结果</text>
+      <text class="empty-text">点上面的按钮，读一遍最近 {{scopeDays}} 天的账单</text>
+    </view>
+
+    <!-- 加载中：骨架而不是空白，否则会以为按钮没生效 -->
+    <view class="card sk-card" wx:if="{{analyzing}}">
+      <view class="sk-row" wx:for="{{[1,2,3]}}" wx:key="*this">
+        <view class="sk-lines">
+          <view class="skeleton sk-line mid"></view>
+          <view class="skeleton sk-line short"></view>
+        </view>
       </view>
     </view>
 
-    <!-- 锁定时的"马赛克"预览：模糊的假结论卡，只给轮廓不给内容 -->
-    <view class="blur-preview {{locked ? 'is-locked' : ''}}" aria-hidden="{{locked}}">
-      <!-- 锁定时只渲染假卡（真数据一个字都不给）；解锁后这段整体消失 -->
-      <block wx:if="{{locked}}">
-        <view class="fake-ins" wx:for="{{[1,2,3]}}" wx:key="*this">
-          <view class="fake-badge"></view>
-          <view class="skeleton fake-line"></view>
-          <view class="skeleton fake-line short"></view>
+    <!-- 失败要与「没有结论」分开：一次网络抖动不该被当成"分析不出东西" -->
+    <view class="empty-state" wx:if="{{loadFailed}}">
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">分析失败</text>
+      <text class="empty-text">账单没动过，可能是网络问题</text>
+      <view class="empty-action">
+        <button class="btn-primary btn-sm" bindtap="onAnalyze">重新分析</button>
+      </view>
+    </view>
+
+    <!-- 有结论：固定结构卡片，每条都带可核对的依据 -->
+    <view class="ins-list" wx:if="{{!analyzing && !loadFailed && insights.length > 0}}">
+      <view class="ins" wx:for="{{insights}}" wx:key="id">
+        <view class="ins-head">
+          <text class="ins-badge bd-{{item.level}}">{{item.levelText}}</text>
         </view>
-      </block>
 
-      <view class="card-head" wx:if="{{!locked}}">
-        <text class="card-title">分析结果</text>
-        <text class="more-link" wx:if="{{!locked && analyzed && !analyzing && !loadFailed}}" bindtap="onAnalyze">重新分析</text>
-      </view>
+        <text class="ins-title">{{item.title}}</text>
+        <text class="ins-detail">{{item.detail}}</text>
 
-      <!-- 还没点过：说明按钮能干什么 -->
-      <view class="empty-state" wx:if="{{!analyzed && !locked}}">
-        <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
-        <text class="empty-text">还没有分析结果</text>
-        <text class="empty-text">点上面的按钮，读一遍最近 {{scopeDays}} 天的账单</text>
-      </view>
-
-      <!-- 加载中：骨架而不是空白，否则会以为按钮没生效 -->
-      <view class="card sk-card" wx:if="{{analyzing}}">
-        <view class="sk-row" wx:for="{{[1,2,3]}}" wx:key="*this">
-          <view class="sk-lines">
-            <view class="skeleton sk-line mid"></view>
-            <view class="skeleton sk-line short"></view>
+        <view class="ev-list" wx:if="{{item.evidence.length > 0}}">
+          <view class="ev" wx:for="{{item.evidence}}" wx:for-item="e" wx:key="label">
+            <text class="ev-k">{{e.label}}</text>
+            <text class="ev-v num">{{e.value}}</text>
           </view>
         </view>
       </view>
 
-      <!-- 失败要与「没有结论」分开：一次网络抖动不该被当成"分析不出东西" -->
-      <view class="empty-state" wx:if="{{loadFailed && !locked}}">
-        <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
-        <text class="empty-text">分析失败</text>
-        <text class="empty-text">账单没动过，可能是网络问题</text>
-        <view class="empty-action">
-          <button class="btn-primary btn-sm" bindtap="onAnalyze">重新分析</button>
-        </view>
+      <view class="ins-foot">
+        <text>共 {{insights.length}} 条 · 扫描 {{meta.scanned}} 笔记录{{meta.hasBudget ? ' · 已结合预算' : ''}}</text>
       </view>
+    </view>
 
-      <!-- 有结论：固定结构卡片，每条都带可核对的依据 -->
-      <view class="ins-list" wx:if="{{!analyzing && !loadFailed && insights.length > 0}}">
-        <view class="ins" wx:for="{{insights}}" wx:key="id">
-          <view class="ins-head">
-            <text class="ins-badge bd-{{item.level}}">{{item.levelText}}</text>
-          </view>
-
-          <text class="ins-title">{{item.title}}</text>
-          <text class="ins-detail">{{item.detail}}</text>
-
-          <view class="ev-list" wx:if="{{item.evidence.length > 0}}">
-            <view class="ev" wx:for="{{item.evidence}}" wx:for-item="e" wx:key="label">
-              <text class="ev-k">{{e.label}}</text>
-              <text class="ev-v num">{{e.value}}</text>
-            </view>
-          </view>
-        </view>
-
-        <view class="ins-foot">
-          <text>共 {{insights.length}} 条 · 扫描 {{meta.scanned}} 笔记录{{meta.hasBudget ? ' · 已结合预算' : ''}}</text>
-        </view>
-      </view>
-
-      <!-- 有账单但一条规则都没触发：如实说"没什么可说的"，不要编一条出来凑数 -->
-      <view class="empty-state" wx:if="{{!analyzing && !loadFailed && analyzed && insights.length === 0 && !locked}}">
-        <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
-        <text class="empty-text">这 {{scopeDays}} 天没有值得说的异常</text>
-        <text class="empty-text">规则只在发现明确变化时才会给结论</text>
-      </view>
+    <!-- 有账单但一条规则都没触发：如实说"没什么可说的"，不要编一条出来凑数 -->
+    <view class="empty-state" wx:if="{{!analyzing && !loadFailed && analyzed && insights.length === 0}}">
+      <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
+      <text class="empty-text">这 {{scopeDays}} 天没有值得说的异常</text>
+      <text class="empty-text">规则只在发现明确变化时才会给结论</text>
     </view>
   </view>
 

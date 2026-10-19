@@ -119,15 +119,6 @@
       <text class="menu-arrow">›</text>
     </view>
 
-    <view class="menu-item" bindtap="showReward" hover-class="menu-hover" hover-stay-time="60">
-      <view class="menu-icon ic-rose">
-        <image class="menu-img" src="/assets/icons/mi-reward.png" mode="aspectFit" />
-      </view>
-      <text class="menu-text">赞赏支持</text>
-      <text class="menu-sub">请作者喝杯咖啡</text>
-      <text class="menu-arrow">›</text>
-    </view>
-
     <view class="menu-item menu-item-last" bindtap="showAbout" hover-class="menu-hover" hover-stay-time="60">
       <view class="menu-icon ic-slate">
         <image class="menu-img" src="/assets/icons/mi-info.png" mode="aspectFit" />
@@ -275,38 +266,6 @@
 
       <text class="ab-copyright">{{copyright}}</text>
       <text class="ab-note">个人练习作品，不收集任何个人信息，也不含第三方统计或广告 SDK。源码与问题反馈见上方 GitHub 地址。</text>
-    </view>
-  </view>
-
-  <!-- ==================== 赞赏弹层 ====================
-       打赏走「赞赏码图片 + 长按识别」，不走 wx.requestPayment：
-       个人主体没有微信支付商户号，小程序内也调不起收款；
-       而展示收款码属于微信官方认可的个人创作者方式，审核不卡。
-       ⚠️ 打赏不能买任何权益 —— 一旦"付钱解锁功能"就是变相收费，会被判违规。
-       交互：<image> 不能长按识别，只有 wx.previewImage 的全屏预览才行，
-       所以点图片 = 打开全屏预览，在里面长按识别。 -->
-  <view class="sheet-mask" wx:if="{{showRewardSheet}}" bindtap="closeRewardSheet"></view>
-  <view class="sheet" wx:if="{{showRewardSheet}}">
-    <view class="sheet-grip"></view>
-    <view class="sheet-head">
-      <text class="sheet-title">赞赏支持</text>
-      <view class="sheet-close" bindtap="closeRewardSheet">✕</view>
-    </view>
-
-    <view class="sheet-body">
-      <image
-        class="rw-qr"
-        src="/assets/icons/reward-qr.png"
-        mode="aspectFit"
-        bindtap="previewRewardQr"
-        hover-class="rw-qr-hover"
-        hover-stay-time="60"
-      />
-
-      <text class="rw-slogan">如果智能账本帮到了你，欢迎请作者喝杯咖啡</text>
-      <text class="rw-hint">点一下二维码放大，再长按识别即可打赏</text>
-
-      <text class="rw-note">打赏完全自愿，不给也一点不影响使用 —— 账本会一直免费，所有功能对所有人开放。</text>
     </view>
   </view>
 

@@ -36,7 +36,7 @@ const BUDGET_DECIMALS = 2
 // ⚠️ 嵌套对象（{budget:{amount}}）看着更整齐，但"只改一个子字段"时
 //    必须区分「这次没传」和「这次传了 null」，稍有不慎就会把没动过的字段清零。
 //    扁平结构下 undefined 天然表示"没传"，判断只有一处。
-const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, vipSince: 0, quickPicks: null, quickPicksMode: 'auto' }
+const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, quickPicks: null, quickPicksMode: 'auto' }
 
 // 本机缓存（进程内），避免每次读 storage
 let cached = null
@@ -61,7 +61,6 @@ function readStorage() {
         theme: str(raw.theme, ''),
         budget: hasBudget ? Math.round(budget * 100) / 100 : 0,
         budgetTime: hasBudget ? (Number(raw.budgetTime) || 0) : 0,
-        vipSince: Number(raw.vipSince) > 0 ? Number(raw.vipSince) : 0,
         // null = 没配置过「常记的」；数组（含空数组）= 配置过
         quickPicks: Array.isArray(raw.quickPicks) ? raw.quickPicks : null,
         // 'auto' 按账单推荐 | 'manual' 用户自己配
@@ -118,16 +117,6 @@ function merge(partial) {
     }
   }
 
-  // vip 的三态与 budget 一致：
-  //   undefined —— 这次没动，保留本机值
-  //   null      —— 不是会员（清掉本机标识）
-  //   {since}   —— 已开通（永久会员，只记激活时间）
-  let vipSince = cur.vipSince
-  if (p.vip !== undefined) {
-    const since = p.vip && Number(p.vip.since)
-    vipSince = since > 0 ? since : 0
-  }
-
   // 「常记的」三态：
   //   undefined —— 这次没动，保留本机值
   //   null      —— 服务端说"从没配置过" → 本机也存 null（回首页会按账单推荐）
@@ -150,7 +139,6 @@ function merge(partial) {
     theme: str(p.theme, cur.theme),
     budget: budget,
     budgetTime: budgetTime,
-    vipSince: vipSince,
     quickPicks: quickPicks,
     quickPicksMode: quickPicksMode
   })
@@ -293,51 +281,6 @@ function setBudget(raw) {
   })
 }
 
-// ==================== VIP 会员 ====================
-
-/** 是否会员。**0 = 不是会员**，>0 = 激活时间戳（永久有效，永不过期） */
-function isVip() {
-  return current().vipSince > 0
-}
-
-/** 会员激活时间戳（0 = 不是会员） */
-function vipSince() {
-  return current().vipSince
-}
-
-/**
- * 开通会员（走云函数的 sandbox 模拟支付）。
- * ⚠️ **会抛**错误 —— 用户主动点的开通，失败了必须让他知道。
- * 真实支付接入后，这里改为「统一下单 → wx.requestPayment → 回调激活」，
- * activateVip 将只被支付回调调用、不再由前端直接调。
- * @returns {Promise<object>} 更新后的档案
- */
-function activateVip() {
-  return wx.cloud.callFunction({
-    name: 'user',
-    data: { action: 'activateVip' }
-  }).then(res => {
-    const r = (res && res.result) || {}
-    if (r.code !== 0 || !r.data) throw new Error(r.message || '开通失败，请重试')
-    return merge(r.data)
-  })
-}
-
-/**
- * 询问下单信息（会员中心页展示价格用）。
- * 已是会员时返回 { alreadyVip: true }。失败**会抛**。
- */
-function createVipOrder() {
-  return wx.cloud.callFunction({
-    name: 'user',
-    data: { action: 'createVipOrder' }
-  }).then(res => {
-    const r = (res && res.result) || {}
-    if (r.code !== 0 || !r.data) throw new Error(r.message || '获取订单信息失败')
-    return r.data
-  })
-}
-
 /**
  * 把主题偏好推到云端，让它跟着账号走（换手机、换设备也是同一套配色）。
  *
@@ -450,9 +393,5 @@ module.exports = {
   quickPicksMode: quickPicksMode,
   setQuickPicks: setQuickPicks,
   validateBudget: validateBudget,
-  setBudget: setBudget,
-  isVip: isVip,
-  vipSince: vipSince,
-  activateVip: activateVip,
-  createVipOrder: createVipOrder
+  setBudget: setBudget
 }

@@ -29,7 +29,7 @@
 | `v0.7.0` | ✅ 已完成（未发布） | **预算管理**：每月支出额度 + 首页进度条 + 超支分档（安全/接近/已超）+ 月末预测；首页第三格改为「预算管理」入口 |
 | `v0.7.1` | ✅ 已完成（未发布） | **全量 bug 审查与优化**：「关于」弹层（作者/版权/邮箱/GitHub）、账单页筛选错位、导入页去重闸门、统计页金额四舍五入与 Y 轴重复刻度、账单分页重复全表扫描 |
 | `v0.8.0` | ✅ 已完成（未发布） | **智能分析落地（规则引擎版）**：AI 分析页真的开始出结论 —— 预算进度 / 支出涨跌 / 消费结构 / 小额高频 / 常去的地方 / 周末效应 / 记账连续性，每条结论都附可核对的依据。**个人主体可上线**（不接大模型、无深度合成合规风险） |
-| `v1.0.0` | 🚧 **开发中（准备发布）** | **首个正式版**：智能分析扩到 10 条规则 + 近 7/30 天两档范围 + 「深度思考」节奏。⚠️ VIP 会员体系代码已内置但**入口暂时隐藏**（个人主体无微信支付商户号，真实收款未打通）—— 云端 `INSIGHT_REQUIRE_VIP=false`，智能分析当前对所有人开放 |
+| `v1.0.0` | 🚧 **开发中（准备发布）** | **首个正式版**：智能分析扩到 10 条规则 + 近 7/30 天两档范围 + 「深度思考」节奏；**智能分析对所有人开放**（不接大模型，个人主体可上线） |
 | `v2.0.0` | 🔄 规划中 | AI 增强：长期消费习惯画像、理财规划；数据备份与恢复 |
 
 > ❌ **已决定不做的功能**：分类预算、订阅消息超支提醒。
@@ -40,11 +40,6 @@
 
 ### v1.0.0（当前 · 准备发布）
 
-- 🔒 **VIP 会员体系（代码已内置，入口暂时隐藏）**：¥18 一次性买断、**永久有效**（没有到期时间，也就没有续费/过期提醒这类状态）
-  - ⚠️ **为什么隐藏**：个人主体小程序无法申请微信支付商户号，真实收款未打通；若保留入口，"点开通却收不到钱"会过不了审且有欺诈风险
-  - 完整链路已写好并留在代码里：会员中心页（金色会员卡 + **功能对比表**（免费功能也列出 —— 只列付费功能会让人以为记账也要钱）+ 价格卡 + 开通按钮）、激活/幂等/防白嫖逻辑（测试钉住）
-  - 恢复方式（三处一起翻）：`getStatistics/index.js` 的 `INSIGHT_REQUIRE_VIP` 改回 `true` + `pages/ai/ai.js` 的 `locked` 改回 `!user.isVip()` + 在「我的」页加回「会员中心」入口
-  - 真实支付接入路径见 README「微信支付怎么接」（`createVipOrder` 调 `cloud.cloudPay.unifiedOrder` + 新增 `payCallback` 回调云函数）
 - ⚡ **首页半屏快捷记账**：点「记一笔」不再跳整页，半屏面板记完即关、停留首页（下一步就能看到刚记的那笔）。面板只放**金额 + 对方（可选）**，交易类型/支付方式/状态/时间全走云端默认值，想改就点「更多选项」进完整页（已填内容会带过去）
   - **常记的一键复用**：chips 最多 **10 个**，**点一下预填、长按直接存**（每天同一杯咖啡只需长按一次）。来源分两种：
     - 入口在**我的 → 设置 → 配置「常记的」**（它是"配一个功能"，不是"看一段说明"，所以不放说明分组）
@@ -62,7 +57,7 @@
   - **统计页**用**内容分享**：标题带真实支出数字（`path` 带上周期，被分享者打开看到同一个月）。这是用户主动点的转发，暴露什么由他自己决定
   - 同时配 `onShareTimeline`（朋友圈分享），同样用固定封面
   - 静态检查第 21 组 + `tests/share-test.js` 钉住：新增页面漏定义会直接报错
-- 💰 **赞赏支持**：「我的 → 说明 → 赞赏支持」展示微信赞赏码（点图片全屏放大 → 长按识别打赏）。个人主体没有微信支付商户号、小程序内调不起收款，展示收款码是官方认可的个人创作者方式；⚠️ **打赏不附带任何权益** —— "付钱解锁功能"属变相收费会被判违规。码图在 `assets/icons/reward-qr.png`（当前是占位图，拿到真赞赏码后直接覆盖；`gen-icons.py` 只在文件不存在时才生成占位，不会冲掉真图）
+
 - 📄 「关于」弹层保留作者信息（v0.7.1 引入）
 
 ### v0.8.0（已完成 · 未发布）
@@ -182,7 +177,7 @@
   分档阈值 79.99%~100.01% / 派生数字反向核对 / 两个入口同源 / 前端合并语义）
 
 ### v0.6.0（已完成 · 未发布）
-- ✅ **底部导航第 5 栏「AI分析」**：原生 tabBar 官方上限就是 5 项（超了直接编译失败），
+- ✅ **底部导航第 4 栏「智能分析」**：原生 tabBar 官方上限就是 5 项（超了直接编译失败），
   所以这次正好用满。位置按你的要求在「统计」与「我的」之间
 - ✅ **AI 分析页界面先行**：`pages/ai` 四件套已就位 —— 深色 hero 卡（星芒徽标 +
   **「一键分析近 30 天账单」** 按钮）、「会分析什么」四维网格、结果区空状态、
@@ -378,12 +373,12 @@ smart-ledger/
 │   ├── index/                # 首页：本月汇总 + 预算进度条 + 近7天趋势 + 最近交易（删除入口在账单页）
 │   ├── bills/                # 账单明细：筛选 + 分页 + 按日分组 + 左滑删除 + 详情弹层（编辑 / 删除）
 │   ├── stats/                # 统计：环形饼图 / 柱状图 / 月度趋势 / TOP5 / 日均收支
-│   ├── ai/                   # 智能分析（**规则引擎版，不接模型**）：结论卡片 + 依据 + 范围切换（7/30 天）+ 会员门控（当前已关，见 INSIGHT_REQUIRE_VIP）+ 空/失败态
+│   ├── ai/                   # 智能分析（**规则引擎版，不接模型**）：结论卡片 + 依据 + 范围切换（7/30 天）+ 空/失败态
 │   ├── import/               # 导入账单（通栏自定义导航 → 上传 → 预览 → 去重 → 导入）
 │   ├── add-bill/             # 记一笔 / 改一笔（同一页两种模式：带 ?id= 进入编辑）
 │   ├── quick-manage/         # 常记的配置页（增删 + 拖动排序 + 从账单推荐里挑）
 │   ├── budget/               # 预算管理：本月进度（已花/剩余/每天还能花/月末预测）+ 额度设置
-│   ├── vip/                  # 会员中心：金色会员卡 + 功能对比表 + 开通（沙箱模拟支付）—— ⚠️ 入口暂隐藏，无页面跳转到它
+
 │   └── profile/              # 个人中心：数据管理 + 设置（我的昵称 / 主题颜色）+ 说明 + 关于（作者/邮箱/GitHub）
 │
 ├── components/
@@ -421,7 +416,7 @@ smart-ledger/
 │   └── gen-icons.py          # 图标生成（从 utils/theme.js 读主题色，产出各主题 tabBar 图标）
 │
 ├── tests/                    # 离线自测（不需要开发者工具、不联网）
-│   ├── run-all.js            # 一键跑完下面 18 个套件
+│   ├── run-all.js            # 一键跑完下面 17 个套件
 │   ├── static-check.js       # 静态检查 21 组：语法/引用/绑定/主题一致性/资源冗余/变量可达性/按钮居中…
 │   ├── test.js               # getStatistics 各 action 的聚合断言（含日均分母）
 │   ├── time-test.js          # toTimestamp 解析（Excel 序列号 / 非法输入）
@@ -439,10 +434,10 @@ smart-ledger/
 │   ├── quick-picks-test.js   # 常记的：纯函数 / 云端保存 / 推荐优先级 / 清空语义
 │   ├── theme-test.js         # 主题：非法值回落 / 图标路径存在性 / 持久化 / 不重复 setData / 导航栏与下拉底色
 │   ├── user-test.js          # 用户档案：自动建档 / 昵称规则 / 越权 / 主题偏好回落 / 问候语
-│   └── vip-test.js           # VIP：激活幂等 / **非沙箱模式拒绝客户端直调（防白嫖）** / 档案合并不丢 vip 字段 / 脏 vip 归一化
+
 │
 └── assets/
-    └── icons/                # 45 个自绘 PNG 图标（约 139KB）
+    └── icons/                # 47 个自绘 PNG 图标（约 220KB）
         ├── home/bill/chart/ai/user.png              81×81  tabBar 未选中（全主题共用，5 个）
         ├── home/bill/chart/ai/user-active-<主题>.png 81×81  tabBar 选中（每套主题一份，5×5 = 25 个）
         ├── qa-import/add/budget.png              96×96  首页快捷入口
@@ -516,7 +511,7 @@ smart-ledger/
 | `profile` | — | `{ totalBills, totalDays, firstTime, lastTime }` |
 | `budget` | — | `{ budget }` —— 预算进度块；**没设过预算是 `null`**（不是 `amount:0` 的对象） |
 | `quickPicks` | `forceAuto`（可选） | `{ picks: [...], source: 'user'|'auto' }` —— 首页面板的「常记的」，最多 **10** 个。**优先返回用户在「常记的」页配置的列表**（顺序即用户拖出来的顺序）；按 `quickPicksMode` 决定：`manual` 用用户列表、`auto` 走推荐；老数据没有该字段时按列表存不存在推断。只有 auto 才按「对方 + 收/支」聚合近 90 天推荐（只留 ≥2 次的，金额取最近一次）。⚠️ `quickPicks: []` 表示用户主动清空 → 返回空**且不回退推荐**；`forceAuto:true` 强制走推荐（配置页拿候选） |
-| `insight` | `days`（可选 `7`/`30`，默认 30） | `{ scope, insights[], summary, meta }` —— 近 N 天规则引擎结论。⚠️ 会员门控由 `INSIGHT_REQUIRE_VIP` 开关控制，**当前为 false（对所有人开放）**；改成 `true` 后非会员返回 `code:-2 + data.needVip` |`insights` 每条含 `id/level/title/detail/evidence[]`，**没有可说的结论时是空数组**（不返回套话）；`summary` 是算出这些结论的完整摘要，界面上不渲染、但测试与将来的 prompt 都用它 |
+| `insight` | `days`（可选 `7`/`30`，默认 30） | `{ scope, insights[], summary, meta }` —— 近 N 天规则引擎结论，**对所有人开放** |`insights` 每条含 `id/level/title/detail/evidence[]`，**没有可说的结论时是空数组**（不返回套话）；`summary` 是算出这些结论的完整摘要，界面上不渲染、但测试与将来的 prompt 都用它 |
 
 `period` 取值：`day` | `week` | `month` | `year` | `all`（周一为一周之首；月末/年末截止到「今天」）
 
@@ -596,7 +591,7 @@ daysTotal, daysPassed, daysLeft, dailyAvg, dailyLeft, forecast, forecastOver, up
 node tests/run-all.js
 ```
 
-会依次跑 18 个套件，全部通过时最后输出 `✅ 全部 18 个套件通过`：
+会依次跑 17 个套件，全部通过时最后输出 `✅ 全部 17 个套件通过`：
 
 | 套件 | 守什么 |
 |------|--------|
@@ -613,7 +608,7 @@ node tests/run-all.js
 | `ai-page-test.js` | AI 分析**页面状态**：用 `global.Page` 桩捕获页面配置直接调方法。核心是**「点了近 7 天，hero 卡那行说明小字必须跟着变成 7 天」**（每个字段都对、只有一行文案没跟上，用户以为切换失效，截图和 code review 都极难发现）；切换后旧结论/失败态被清空、点已选中的档位不变、分析进行中不响应切换、云端返回的窗口与文案一致、云函数失败时 `loadFailed` 与「没有结论」分开表达且提示可操作 |
 | `import-dedup-test.js` | 导入去重：**parse 返回的 keys 必须与 data 逐下标对齐**（错配会"该留的被删、该删的留下"且不报错）、dedup 只收键且下标准确、**3000 个键不截断**、**跨用户隔离**（别人的账单不能让我的键变成"已存在"）、无单号时兜底键与库文档对得上、`utils/bill-dedup.js` 的「新增+重复=总数」、导入页**分批提交与下标偏移**（3200 条分 3 批）、去重失败不许继续 |
 | `theme-test.js` | 主题系统：非法 id / 脏存储能否安全回落、**JS 拼出的 tabBar 图标路径是否真的落在磁盘上**、切换是否持久化、「主题没变就不 setData」、同步失败能否重试、**导航栏与下拉顶部底色是否等于当前主题的 hero 色**（且白底导航页不会被误染） |
-| `vip-test.js` | VIP 会员：激活成功/幂等（重复激活不冲掉 since）、**`VIP_PAY_MODE` 改成 wxpay 后客户端直调激活被拒绝**（防白嫖闸门）、他人激活不越权、`updateProfile`/`setBudget` 回传 vip（否则改资料 = 会员"失效"）、前端 merge 保留 vip 与 budget 并存、脏 vip（字符串/布尔）归一化成 null、getStatistics insight 门控静态对账 |
+
 | `user-test.js` | 用户档案：首次进入自动建档且**不会重复建档**、昵称规则边界（1/2/12/13 个字符、emoji 按 1 个算、首尾空白、换行、非字符串）、**查询漏了 `_openid` 会读到别人的昵称**、返回体不含 `_openid`/`_id`、主题只校验格式、**云端偏好回落**（云端为空不覆盖本机、云端 id 本机不认识时保留本机选择）、云函数挂掉时 `load()` 降级不抛错、问候语 11 个整点的分档与「昵称空时不出现悬挂逗号」 |
 | `share-test.js` | 分享转发：通用分享的返回体**只允许 `title`/`path`/`imageUrl` 三个键**（多一个就可能把用户数据带上分享卡片）、统计页标题的金额口径与周期、朋友圈分享必须给图片、用 Page 桩把 `app.json` 里**每个页面**都加载一遍验证真的能转发 |
 | `quick-add-test.js` | 半屏快捷记账面板：**金额清洗**（12.345 → 12.34、1.2.3 → 1.23、非数字剔除、超长截断）、**点 chip 只预填（不请求）vs 长按 chip 直接落库**（混淆会让用户莫名多记一笔）、空金额/0 不提交、提交走 parseCSV 的 `action=add`（与完整记账页同一条链路，口径不分叉）、UTC+8 日期时间、**失败时不关面板**可改后重试、**每次打开都重新拉「常记的」**（不做一次性缓存，否则配置页改完首页看不到效果） |
@@ -725,7 +720,7 @@ node tests/run-all.js
 
 ### 改动生效清单（改了统计/解析逻辑后照做）
 
-1. 先跑 `node tests/run-all.js`，18 个套件全绿再继续
+1. 先跑 `node tests/run-all.js`，17 个套件全绿再继续
 2. 重新部署 `parseCSV`、`getStatistics`、`user` —— 只部署一部分会出现「改了一半」的假象
 3. 首页 / 账单 / 统计三个页面分别下拉刷新一次
 
@@ -920,7 +915,7 @@ node tests/run-all.js
 
 ### 看智能分析（v1.0.0 · 规则引擎版）
 
-底部导航第 5 栏 **AI分析**（在「统计」和「我的」之间）。可选**近 7 天 / 近 30 天**两档范围，
+底部导航第 4 栏 **智能分析**（在「统计」和「我的」之间）。可选**近 7 天 / 近 30 天**两档范围，
 点「一键分析账单」后会先「深度思考」几秒（模拟 AI 分析节奏），再给出**最多 6 条结论**：
 
 ```
@@ -1432,120 +1427,6 @@ users {
 主题化之后，**页面 WXSS 里不允许再出现品牌色的十六进制字面量**。
 需要品牌色一律用 `var(--brand*)`，需要固定色（如语义红绿、无彩色）才允许写死。
 `tests/static-check.js` 会扫描 `--primary-color` 等已删除的旧变量名，写错会直接报错。
-
-## 微信支付怎么接（会员真实收款）
-
-> 现状：个人主体小程序**申请不了微信支付商户号**，所以会员入口已临时隐藏、
-> 智能分析对所有人开放（`INSIGHT_REQUIRE_VIP=false`）。这一节是等主体换成
-> 企业/个体工商户后，把真实收款打通的操作指南。代码里的接线位已经全部留好。
-
-### 一、前置条件（顺序不能乱）
-
-| 步骤 | 在哪操作 |
-|------|---------|
-| 1. 小程序开通微信支付 | 主体为企业/个体工商户，在公众平台申请商户号（需营业执照+对公账户） |
-| 2. 关联 AppID | 微信支付商户平台 → 产品中心 → AppID 账号管理，绑定本小程序 |
-| 3. 绑定商户号到云环境 | 云开发控制台 → 设置 → 全局设置 → 微信支付 → 填入 mchid |
-| 4. 授权服务商 | 微信「支付商家助手」小程序 → 服务商授权 → 找到 `1800008281 小程序云开发` → 确认 |
-| 5. 开产品权限 | 商户平台 → 我的授权产品 → 开启 **JSAPI 支付**（退款可选） |
-
-缺任一步直接调 `cloudPay.unifiedOrder` 会报 `errCode: 47001`。
-
-### 二、接入路径：云开发 `cloudPay`（不用自己签名）
-
-本项目是云开发，**不要**自己搭服务器写签名 —— `cloud.cloudPay.unifiedOrder`
-内部处理签名与证书，只需传业务参数。整个链路：
-
-```
-用户点「开通」→ 前端调 user 云函数(createVipOrder)
-   ↓
-云函数：生成 outTradeNo → 写 vip_orders 订单表 → cloud.cloudPay.unifiedOrder({...})
-   ↓ 返回 payment（已签好名的支付参数）
-前端：wx.requestPayment(payment) → 拉起微信收银台
-   ↓ 用户付款
-微信把结果推给 unifiedOrder 里指定的回调云函数（functionName: 'payCallback'）
-   ↓ 云端验签（云调用自动做）→ 按 outTradeNo 找到 openid → 激活 VIP → 订单标记 paid
-```
-
-### 三、要改的四处（都在现有代码里留了位）
-
-**1. `cloudfunctions/user/index.js` 的 `createVipOrder`** —— 删掉 sandbox 分支，换成真下单：
-
-```js
-async function createVipOrder(openid) {
-  const got = await getProfile(openid)
-  if (got.code !== 0) return got
-  if (got.data.vip) return { code: 0, data: { alreadyVip: true, vip: got.data.vip } }
-
-  const outTradeNo = 'VIP' + Date.now() + Math.random().toString(36).slice(2, 8).toUpperCase()
-  await db.collection('vip_orders').add({ data: { outTradeNo, _openid: openid, status: 'paying', createdAt: Date.now() } })
-
-  const res = await cloud.cloudPay.unifiedOrder({
-    body: VIP_PRODUCT_NAME,        // 商品描述，会显示在收银台
-    outTradeNo,                    // 商户订单号，回调靠它找人
-    spbillCreateIp: '127.0.0.1',   // 用户 IP，云函数里拿不到真实值，占位即可
-    subMchId: '<商户号>',          // 绑定的 mchid
-    totalFee: VIP_PRICE_FEN,       // ⚠️ 单位是「分」，1800 = ¥18.00
-    envId: 'cloud1-d7gne5bpf2229f19b',
-    functionName: 'payCallback',   // ⚠️ 支付结果推给这个云函数，名字必须一字不差
-    tradeType: 'JSAPI',
-    openid
-  })
-  return { code: 0, data: { mode: 'wxpay', payment: res.payment } }
-}
-```
-
-**2. 新增回调云函数 `cloudfunctions/payCallback/index.js`** —— 这是防白嫖的真正闸门：
-
-```js
-const cloud = require('wx-server-sdk')
-cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
-const db = cloud.database()
-
-exports.main = async (event) => {
-  // cloudPay 回调已自带验签，进来的就是可信的支付结果
-  const { outTradeNo, returnCode } = event
-  if (returnCode !== 'SUCCESS') return { errcode: 0, errmsg: '处理失败' }
-
-  const res = await db.collection('vip_orders').where({ outTradeNo }).limit(1).get()
-  const order = res.data && res.data[0]
-  if (!order) return { errcode: 0, errmsg: '订单不存在' }
-  if (order.status === 'paid') return { errcode: 0 }   // 重复通知：幂等
-
-  await db.collection('users').where({ _openid: order._openid })
-    .update({ data: { vip: { since: Date.now() }, updatedAt: Date.now() } })
-  await db.collection('vip_orders').where({ outTradeNo })
-    .update({ data: { status: 'paid', paidAt: Date.now() } })
-  return { errcode: 0 }
-}
-```
-
-**3. `activateVip` 保持不动** —— `VIP_PAY_MODE !== 'sandbox'` 时它已经拒绝客户端直调，
-真实激活只发生在回调里。它已有的幂等（已是会员就原样返回）正好防重复通知。
-
-**4. 前端 `pages/vip/vip.js`** —— 收到 `payment` 后 `wx.requestPayment`，
-`success` 里重新 `user.load()` 刷新会员态，而不是直接调 `activateVip`。
-
-### 四、一定会踩的坑
-
-| 坑 | 说明 |
-|----|------|
-| **金额单位** | `totalFee` 是**分**。前端展示用元，传给支付必须 ×100。传 18 会报"金额无效" |
-| **订单必须落库** | 回调只给 `outTradeNo`，不落库就不知道该给谁开通 |
-| **回调函数要单独部署** | `payCallback` 是独立云函数，改完 `user` 不会带上它 |
-| **vip_orders 集合要建** | 云函数不会自动建集合（同 `users`，控制台手动建） |
-| **集合权限** | `vip_orders` 设「仅创建者可读写」；`users` 仍是「仅管理端可读写」（云函数绕过权限写） |
-| **body 中文乱码** | 不要自己编码，SDK 会处理 |
-| **支付成功但界面没变** | `wx.requestPayment` 的 `success` 里必须重新拉一次档案，只弹 toast 会像没付上 |
-
-### 五、恢复会员入口的完整清单
-
-改完支付、测试通过后，把这三处一起翻回来：
-
-1. `cloudfunctions/getStatistics/index.js`：`INSIGHT_REQUIRE_VIP` → `true`
-2. `pages/ai/ai.js`：`locked` → `!user.isVip()`
-3. `pages/profile/profile.wxml`：加回「会员」分组（代码里搜 `goToVip` 有现成写法）
-4. `cloudfunctions/user/index.js`：`VIP_PAY_MODE` → `'wxpay'`，并删掉 `createVipOrder` 里的 sandbox 分支
 
 ## 注意事项
 

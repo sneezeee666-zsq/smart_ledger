@@ -77,12 +77,6 @@ Page({
     analyzing: false,
     analyzed: false,   // 区分「还没点」与「点了但没有结论」
     loadFailed: false,
-
-    // 会员门控（临时放开）。
-    // ⚠️ 个人主体无法接入微信支付，会员入口已隐藏；云函数侧
-    //    INSIGHT_REQUIRE_VIP 当前为 false，智能分析对所有人开放。
-    //    将来补好支付、把云端开关翻回 true 时，这里同步改回 `!user.isVip()`。
-    locked: false
   },
 
 
@@ -105,14 +99,6 @@ Page({
     }
     // 本页是 tabBar 页 → 同步原生 tabBar 的配色（第三个参数不传：本页导航栏是白底黑字）
     theme.attach(this, true)
-
-    // 会员态暂不再驱动本页（智能分析已对所有人开放，详见云端 INSIGHT_REQUIRE_VIP）。
-    // 将来重新启用会员门控时，恢复下面这段：回到本页重读 isVip 并同步 setData({ locked })。
-  },
-
-  /** 普通用户点主按钮 → 引导去会员中心（而不是报错） */
-  goVip() {
-    wx.navigateTo({ url: '/pages/vip/vip' })
   },
 
   /** 切换分析范围（近 7 天 / 近 30 天） */
@@ -158,11 +144,6 @@ Page({
       if (seq !== this._seq) return
 
       const result = (res && res.result) || {}
-      // 云端的会员门控：本机缓存说"是会员"但云端说不是（换账号/缓存过期）
-      if (result.code === -2 && result.data && result.data.needVip) {
-        user.load().then(() => this.setData({ locked: !user.isVip() }))
-        throw new Error('智能分析是会员功能')
-      }
       if (result.code !== 0 || !result.data) {
         throw new Error(result.message || '分析失败')
       }
@@ -209,12 +190,7 @@ Page({
         analyzed: true,
         loadFailed: true
       })
-      // 云端拒绝（会员态不一致）时把原因说清楚，别笼统报"分析失败"
-      const msg = (err && err.message) || ''
-      wx.showToast({
-        title: msg.indexOf('会员') !== -1 ? msg : '分析失败，请重试',
-        icon: 'none'
-      })
+      wx.showToast({ title: '分析失败，请重试', icon: 'none' })
     }
   }
 })

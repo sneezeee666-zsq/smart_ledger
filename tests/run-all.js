@@ -26,8 +26,7 @@ const SUITES = [
   ['快捷记账面板（金额清洗/点预填 vs 长按直存/提交形态）', 'quick-add-test.js'],
   ['常记的配置（纯函数/云端保存/推荐优先级/清空语义）', 'quick-picks-test.js'],
   ['主题系统（回落/tabBar 图标/持久化）', 'theme-test.js'],
-  ['用户档案（自动建档/昵称规则/越权/主题偏好）', 'user-test.js'],
-  ['VIP 会员（激活幂等/防白嫖/档案不丢字段）', 'vip-test.js']
+  ['用户档案（自动建档/昵称规则/越权/主题偏好）', 'user-test.js']
 ]
 
 let failed = 0

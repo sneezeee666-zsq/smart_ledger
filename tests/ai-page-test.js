@@ -137,7 +137,6 @@ function loadAiPage() {
   // ================================================================
   {
     const page = loadAiPage()
-    t(page.data.locked === false, '会员入口隐藏期：locked 恒为 false（任何人都能分析）')
 
     let toastTitle = ''
     global.wx.showToast = (o) => { toastTitle = o.title }

@@ -22,13 +22,6 @@ const insight = require('./lib/insight.js')
 const PAGE_SIZE = 1000   // 云端单次上限
 const MAX_PAGES = 20     // 最多取 2 万条，足够个人账本
 
-// 智能分析是否要求会员（云端门控的总开关）。
-// ⚠️ 当前 false：个人主体小程序无法接入微信支付（没有商户号），会员入口已临时隐藏，
-//    若仍强制会员门控，AI 分析会变成"锁死且永远无法解锁"的死功能。
-//    所以暂时对所有人开放。将来主体换成企业/个体户、接好支付后，把这里翻回 true 即可
-//    重新启用会员门控（前端 ai 页的 locked 同步翻回 !user.isVip()；两处一起翻）。
-const INSIGHT_REQUIRE_VIP = false
-
 /**
  * 分类展示元数据（id → 名称/图标/颜色）
  *
@@ -90,15 +83,6 @@ exports.main = async (event) => {
       return await buildBudgetData(openid)
     }
     if (action === 'insight') {
-      // ⚠️ 会员门控在云端判（遮罩只是体验，这里才是权限）。
-      //    code 用 -2 + needVip，前端据此引导去开通页，而不是当失败处理。
-      //    INSIGHT_REQUIRE_VIP=false 时放开给所有人（详见该常量注释）。
-      if (INSIGHT_REQUIRE_VIP) {
-        const vip = await fetchVipFlag(openid)
-        if (!vip) {
-          return { code: -2, message: '智能分析是会员功能，开通会员后可用', data: { needVip: true } }
-        }
-      }
       return await buildInsightData(openid, event.days)
     }
     if (action === 'quickPicks') {
@@ -297,22 +281,6 @@ async function fetchBudget(openid) {
     amount: Math.round(amount * 100) / 100,
     updateTime: Number(b.updateTime) || 0
   }
-}
-
-/**
- * 当前用户是否会员。
- * 与 cloudfunctions/user 的 isVipDoc 同一口径：vip.since > 0。
- * ⚠️ insight 的会员门控必须在**云端**判 —— 只做前端遮罩的话，
- *    谁用开发者工具直接调云函数就能白嫖。遮罩只是体验，这里是权限。
- */
-async function fetchVipFlag(openid) {
-  const res = await db.collection('users')
-    .where({ _openid: openid })
-    .limit(1)
-    .get()
-
-  const doc = res && res.data && res.data.length ? res.data[0] : null
-  return !!(doc && doc.vip && Number(doc.vip.since) > 0)
 }
 
 /**

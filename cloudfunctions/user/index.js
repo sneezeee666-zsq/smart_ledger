@@ -45,23 +45,6 @@ const QUICK_PICK_AMOUNT_MAX = 100000000
 // 「用户主动选了推荐模式，但以前配过的列表还要留着」这种情况。
 const QUICK_PICK_MODES = ['auto', 'manual']
 
-// ==================== VIP 会员 ====================
-// 一次性买断、永久有效 —— 不做订阅、不做到期时间。
-// 「会员没有过期」意味着 vip 里只需要一个激活时间，没有"什么时候失效"这个概念，
-// 也就不需要任何定时任务去扫描过期会员（少一类会静默出错的定时逻辑）。
-const VIP_PRICE_FEN = 1800        // ¥18.00，单位是分（与微信支付同单位）
-const VIP_PRODUCT_NAME = '智能账本 · 永久会员'
-
-/**
- * 支付模式开关。
- * ⚠️ 'sandbox'：商户号还没接入时的**模拟支付** —— 不收钱、直接激活，
- *    让「充值 → 解锁」这条链路可以完整走通和测试。
- *    ⚠️⚠️ 接入真实商户号后必须改成 'wxpay' 并补上支付回调验签：
- *    真实模式下激活只能由**支付成功回调**（payCallback）触发，
- *    绝不能相信客户端传来的任何"我付过了"的参数 —— 否则谁都能白嫖会员。
- */
-const VIP_PAY_MODE = 'sandbox'
-
 // 换行 / 制表 / 其它控制字符：会把布局撑破，看起来还像「空白昵称」
 const NICK_BAD = /[\u0000-\u001F\u007F-\u009F]/
 
@@ -94,14 +77,6 @@ exports.main = async (event, context) => {
 
     if (action === 'setQuickPicks') {
       return await setQuickPicks(openid, event)
-    }
-
-    if (action === 'createVipOrder') {
-      return await createVipOrder(openid)
-    }
-
-    if (action === 'activateVip') {
-      return await activateVip(openid, event)
     }
 
     // 不传 action 时按 getProfile 处理：启动时最常用的就是它
@@ -177,7 +152,6 @@ function publicProfile(doc) {
     nickname: typeof doc.nickname === 'string' ? doc.nickname : '',
     theme: typeof doc.theme === 'string' ? doc.theme : '',
     budget: readBudget(doc),
-    vip: readVip(doc),
     quickPicks: readQuickPicks(doc),
     quickPicksMode: readQuickPicksMode(doc)
   }
@@ -215,25 +189,6 @@ function readQuickPicks(doc) {
 
   const r = normalizeQuickPicks(raw)
   return r.ok ? r.value : []
-}
-
-/**
- * 归一化库里的 vip 字段。
- * ⚠️ 与 budget 同一条约定：前端拿到的 vip 要么是 { since }，要么是 null，
- *    不会是 undefined —— 前端要靠它决定"显示会员权益"还是"显示开通引导"。
- * 永久会员没有 expire 字段；将来若做订阅制再加，**别提前加** ——
- * 现在加一个恒为 null 的字段只会让每处读它的人多一个"这算不算过期"的判断。
- */
-function readVip(doc) {
-  const v = doc && doc.vip
-  if (!v || !v.since) return null
-  const since = Number(v.since)
-  return since > 0 ? { since: since } : null
-}
-
-/** 是否会员（云端权威判断。getStatistics 的 insight 门控也用这个口径） */
-function isVipDoc(doc) {
-  return !!(doc && doc.vip && Number(doc.vip.since) > 0)
 }
 
 /**
@@ -311,9 +266,7 @@ async function updateProfile(openid, event) {
       theme: patch.theme !== undefined ? patch.theme : got.data.theme,
       // 改昵称/主题时预算没动，但要**如实回传**：
       // 前端拿到返回体就整份写进本机缓存，少给一个字段等于顺手把预算抹掉。
-      budget: got.data.budget,
-      // 同理：vip 也要回传。否则用户开完会员改个昵称，本机的会员标识就被抹掉了
-      vip: got.data.vip
+      budget: got.data.budget
     }
   }
 }
@@ -364,8 +317,7 @@ async function setBudget(openid, event) {
       uid: got.data.uid,
       nickname: got.data.nickname,
       theme: got.data.theme,
-      budget: r.value > 0 ? { amount: r.value, updateTime: now } : null,
-      vip: got.data.vip
+      budget: r.value > 0 ? { amount: r.value, updateTime: now } : null
     }
   }
 }
@@ -487,89 +439,9 @@ async function setQuickPicks(openid, event) {
       nickname: got.data.nickname,
       theme: got.data.theme,
       budget: got.data.budget,
-      vip: got.data.vip,
       // 没动的那个字段回传原值，前端 merge 才不会把它覆盖掉
       quickPicks: hasPicks ? list : got.data.quickPicks,
       quickPicksMode: mode !== undefined ? mode : got.data.quickPicksMode
-    }
-  }
-}
-
-// ==================== VIP 会员 ====================
-
-/**
- * 创建会员订单（充值入口）。
- *
- * sandbox 模式（当前）：不接商户号，直接返回"模拟支付成功"，
- * 由前端调 activateVip 完成激活 —— 让「充值 → 解锁」链路可完整测试。
- *
- * wxpay 模式（接入商户号后）：这里应该调微信支付**统一下单**，
- * 返回 prepay_id 换起 wx.requestPayment；激活只发生在**支付回调**里
- * （回调验签通过才写 vip 字段）。⚠️ 到那时这个函数里的 sandbox 分支必须删掉。
- */
-async function createVipOrder(openid) {
-  const got = await getProfile(openid)
-  if (got.code !== 0) return got
-
-  // 已经是会员 → 不再下单（永久会员不存在"续费"）
-  if (got.data.vip) {
-    return { code: 0, data: { alreadyVip: true, vip: got.data.vip } }
-  }
-
-  return {
-    code: 0,
-    data: {
-      mode: VIP_PAY_MODE,
-      alreadyVip: false,
-      order: {
-        productName: VIP_PRODUCT_NAME,
-        priceFen: VIP_PRICE_FEN,
-        createdAt: Date.now()
-      }
-    }
-  }
-}
-
-/**
- * 激活会员。
- *
- * ⚠️ 归属条件必须在：只按 _openid 更新，谁也动不了别人的档案。
- * ⚠️ 真实支付上线后，本函数只能被**支付成功回调**调用（服务端之间），
- *    不能直接暴露给客户端按需调用 —— sandbox 阶段才允许前端直接调。
- */
-async function activateVip(openid, event) {
-  // sandbox 之外的模式：客户端不允许直接激活（防止绕过支付）
-  if (VIP_PAY_MODE !== 'sandbox') {
-    return bad('支付方式未开通，请稍后再试')
-  }
-
-  const got = await getProfile(openid)
-  if (got.code !== 0) return got
-
-  // 幂等：已经是会员就原样返回，不重复写（重复激活会把 since 冲掉）
-  if (got.data.vip) {
-    return { code: 0, data: { uid: got.data.uid, vip: got.data.vip } }
-  }
-
-  const now = Date.now()
-  const vip = { since: now }
-
-  const res = await db.collection(USERS)
-    .where({ _openid: openid })
-    .update({ data: { vip: vip, updatedAt: now } })
-
-  if (!res || !res.stats || !res.stats.updated) {
-    return bad('开通失败，请重试')
-  }
-
-  return {
-    code: 0,
-    data: {
-      uid: got.data.uid,
-      nickname: got.data.nickname,
-      theme: got.data.theme,
-      budget: got.data.budget,
-      vip: vip
     }
   }
 }
