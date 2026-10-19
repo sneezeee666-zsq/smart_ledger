@@ -95,6 +95,12 @@ Page({
       list: withKey(shown),
       recs: withKey(recsOf(autoPicks, myList)),
       offsets: shown.map(() => 0),
+      // ⚠️ 重新同步时要把拖拽态一起复位：拖拽中 `dragging` 是 true，
+      //    而它是 `scroll-y="{{!dragging}}"` 的开关 —— 忘了复位就等于
+      //    页面永远不能滚动（看起来又是一次"卡死"）。
+      dragIndex: -1,
+      dragY: 0,
+      dragging: false,
       loaded: true
     })
   },
@@ -107,10 +113,17 @@ Page({
    * - 切到推荐：**只存来源，不动手动列表** —— 切回来能恢复之前的配置
    * - 切到手动：如果手配列表还是空的，就把当前展示的推荐当作起点
    *   （否则用户切过来看到空列表，还得一条条加回来）
+   *
+   * ⚠️ 界面先切、再异步落库（乐观更新）：等云端回来才切的话，
+   *    一次切换要空一下才响应，用户会以为没点上、接着连点。
+   * ⚠️ **不能因为 saving 就把点击丢掉**（见 persist 里的串行队列）：
+   *    上一版这里是 `if (mode === this.data.mode || this.data.saving) return`，
+   *    保存稍慢时用户点的那一下被静默吞掉，界面停在他不要的那个模式上 ——
+   *    表现就是"切不过去、卡死了"。
    */
-  async onMode(e) {
+  onMode(e) {
     const mode = e.currentTarget.dataset.mode
-    if (mode === this.data.mode || this.data.saving) return
+    if (mode === this.data.mode) return
 
     if (mode === 'auto') {
       const shown = this.data.autoPicks
@@ -122,7 +135,7 @@ Page({
         dragY: 0,
         dragging: false
       })
-      await this.persist(null, 'auto')
+      this.persist(null, 'auto')
       return
     }
 
@@ -130,57 +143,91 @@ Page({
     if (next.length === 0 && this.data.autoPicks.length > 0) {
       next = this.data.autoPicks.slice(0, qp.LIMIT)
     }
-    await this.applyManual(next, 'manual')
+    this.applyManual(next, 'manual')
   },
 
-  // ==================== 保存（带回滚） ====================
+  // ==================== 保存（失败后以云端为准回滚） ====================
 
   /**
-   * 写云端。失败时把界面回滚到修改前 —— 否则用户看到"已经改了"，
-   * 下次进来又变回去，会以为这个功能坏了。
+   * 写云端。
+   *
+   * **串行队列**而不是直接并发：连点切换时多个 setQuickPicks 同时在飞，
+   * 到达顺序无法保证 —— 可能出现"最后点的那个先落地、又被先发的旧值覆盖"，
+   * 于是界面显示推荐、云端存着手动，下次进来又变了。
+   * 串行之后顺序 = 点击顺序，最后落地的一定是用户最后选的那个。
    *
    * @param {Array|null} list 传 null = 只切来源、不动列表
    * @param {string} mode 'auto' | 'manual'
    */
-  async persist(list, mode) {
-    const prev = {
-      mode: this.data.mode,
-      myList: this.data.myList,
-      list: this.data.list,
-      recs: this.data.recs
-    }
+  persist(list, mode) {
+    const task = () => user.setQuickPicks(
+      list === null ? null : qp.normalizeList(list),
+      mode
+    )
 
+    this._pending = (this._pending || 0) + 1
     this.setData({ saving: true })
 
-    try {
-      await user.setQuickPicks(
-        list === null ? null : qp.normalizeList(list),
-        mode
+    // 上一笔失败也要继续执行下一笔（then(task, task) 而不是 then(task)）
+    this._chain = (this._chain || Promise.resolve())
+      .then(task, task)
+      .then(
+        () => this.settleSave(null),
+        err => this.settleSave(err)
       )
-      this.setData({ saving: false })
-    } catch (err) {
-      wx.showToast({ title: (err && err.message) || '保存失败，请重试', icon: 'none' })
-      this.setData(Object.assign({ saving: false }, prev))
-    }
+  },
+
+  /**
+   * 一笔写完了。**队列全部排空才收尾**，否则第一笔回来就把 saving 关掉，
+   * 后面还在飞的那几笔就失去了「保存中」的提示。
+   */
+  settleSave(err) {
+    if (err) this._saveErr = err
+
+    this._pending = Math.max(0, (this._pending || 1) - 1)
+    if (this._pending > 0) return
+
+    this.setData({ saving: false })
+
+    const e = this._saveErr
+    if (!e) return
+    this._saveErr = null
+
+    wx.showToast({ title: (e && e.message) || '保存失败，请重试', icon: 'none' })
+    // ⚠️ 回滚 = **重新从云端读真值**，不是恢复本地快照：
+    //    快照是"这一次点击之前"的样子，连点几次后它可能已经过期，
+    //    拿它覆盖界面会把用户后来的操作也一起抹掉。
+    //    另外"报错了但云端其实写成功了"（超时重传）也只能靠读回来纠正。
+    user.load(true).then(() => this.loadAll())
   },
 
   /**
    * 改手动列表并保存。
+   *
+   * ⚠️ **必须把 mode 一起写进 data**：上一版这里只换了 list 没换 mode，
+   *    于是「切换条」还高亮在推荐、列表却已经是手动的内容，
+   *    而编辑入口的 `wx:if="{{mode === 'manual'}}"` 全被隐藏 ——
+   *    用户看到的是"列表是手动的、但什么都不能改、切也切不动"。
+   *    这个 bug 只在 auto → manual → auto 之后暴露，因为第一次切到手动时
+   *    界面恰好还能看（list 换了），再点推荐又被 mode === this.data.mode 挡住。
+   *
    * @param {Array} next 新的手动列表
-   * @param {string} [mode] 不传则沿用当前模式
+   * @param {string} [mode] 不传则用 'manual'
    */
-  async applyManual(next, mode) {
-    const myList = withKey(qp.normalizeList(next))
+  applyManual(next, mode) {
+    const list = qp.normalizeList(next)
+    const myList = withKey(list)
     this.setData({
+      mode: mode || 'manual',
       myList,
       list: myList,
-      recs: withKey(recsOf(this.data.autoPicks, qp.normalizeList(next))),
+      recs: withKey(recsOf(this.data.autoPicks, list)),
       offsets: myList.map(() => 0),
       dragIndex: -1,
       dragY: 0,
       dragging: false
     })
-    await this.persist(qp.normalizeList(next), mode || 'manual')
+    this.persist(list, mode || 'manual')
   },
 
   // ==================== 拖动排序（仅手动模式） ====================

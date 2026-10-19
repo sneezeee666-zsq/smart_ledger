@@ -346,6 +346,119 @@ const pick = (title, amount, type) => ({ title, amount, type: type || 'expense' 
       '别人的配置和账单都不影响我的结果')
   }
 
+  // ================================================================
+  console.log('\n=== 7) 配置页：推荐 / 手动 切换（回归） ===')
+  // ================================================================
+  // 这一节守一个"整页卡死"的 bug：
+  //   applyManual() 只把列表换成 myList，却没把 mode 写进 data。
+  //   于是切换条永远高亮「推荐」、列表却显示手动内容，而编辑入口的
+  //   `wx:if="{{mode === 'manual'}}"` 全被隐藏 → 什么都不能改；
+  //   再点「推荐」又被 `mode === this.data.mode` 判成"没变化"直接 return → 彻底卡死。
+  //   ⚠️ 第一次切到手动时"看起来还行"（列表确实换了），所以只有
+  //      auto → manual → auto 之后才暴露 —— 手动点两次就必现。
+  {
+    reset()
+    // 造 3 次「地铁」，让自动推荐里有内容
+    const now = Date.now()
+    for (let i = 0; i < 3; i++) {
+      seq++
+      DB.bills.push({
+        _id: 'b' + seq, _openid: 'me', createTime: now - i * 86400000,
+        amount: 3, type: 'expense', title: '地铁', product: '', categoryId: 'transport'
+      })
+    }
+
+    let failCloud = null            // 非 null 时下一次写云端直接 reject
+    let toasts = []
+    const store = {}
+    global.wx = {
+      getStorageSync: k => (store[k] === undefined ? '' : store[k]),
+      setStorageSync: (k, v) => { store[k] = v },
+      getWindowInfo: () => ({ windowWidth: 375 }),
+      showToast: o => toasts.push(o.title),
+      vibrateShort: () => {},
+      cloud: {
+        callFunction({ name, data }) {
+          if (name === 'user' && failCloud) {
+            const e = failCloud
+            failCloud = null
+            return Promise.reject(new Error(e))
+          }
+          const fn = name === 'user' ? userFn : statsFn
+          return fn.main(data || {}).then(result => ({ result }))
+        }
+      }
+    }
+
+    // 页面只用到 theme.attach（换肤），单测里不需要
+    const theme = require(path.join(__dirname, '..', 'utils', 'theme.js'))
+    theme.attach = () => {}
+
+    let cfg = null
+    global.Page = c => { cfg = c }
+    require(path.join(__dirname, '..', 'pages/quick-manage/quick-manage.js'))
+    global.Page = undefined
+
+    const page = Object.assign({}, cfg, {
+      data: JSON.parse(JSON.stringify(cfg.data)),
+      setData(patch) { Object.assign(this.data, patch) }
+    })
+    const flush = () => new Promise(r => setTimeout(r, 0))
+    const tapMode = m => page.onMode({ currentTarget: { dataset: { mode: m } } })
+    const titles = () => page.data.list.map(x => x.title)
+
+    await page.loadAll()
+    t(page.data.mode === 'auto' && titles().length > 0, '初始：推荐模式，列表是推荐内容')
+
+    // ① 切手动 → mode 必须真的变成 manual（bug 就出在这里）
+    tapMode('manual'); await flush()
+    t(page.data.mode === 'manual', `切到手动后 data.mode 必须是 manual（实际 ${page.data.mode}）`)
+    t(page.data.list.length > 0, '手动列表以推荐内容为起点（不是空列表）')
+    const cloudAfterManual = await statsFn.main({ action: 'quickPicks' })
+    t(cloudAfterManual.data.source === 'user', '云端来源已存成手动')
+
+    // ② 切回推荐
+    tapMode('auto'); await flush()
+    t(page.data.mode === 'auto', `切回推荐后 data.mode 必须是 auto（实际 ${page.data.mode}）`)
+    const cloudAfterAuto = await statsFn.main({ action: 'quickPicks' })
+    t(cloudAfterAuto.data.source === 'auto', '云端来源已切回自动')
+
+    // ③ ⚠️ 本 bug 的核心回归点：再切回手动必须还有反应
+    tapMode('manual'); await flush()
+    t(page.data.mode === 'manual', '推荐 → 手动 → 推荐 → 手动：仍然能切（此前此处整页卡死）')
+    t(page.data.myList.length > 0, '切回来时手动列表还在（没被推荐覆盖）')
+
+    // ④ 编辑入口真的可用（mode 对了，wx:if 才会渲染出 ↑↓ / ✕）
+    const before = page.data.myList.length
+    page.onDelete({ currentTarget: { dataset: { index: 0 } } }); await flush()
+    t(page.data.myList.length === before - 1, `手动模式下删除生效（${before} → ${page.data.myList.length}）`)
+    const cloudAfterDel = await statsFn.main({ action: 'quickPicks' })
+    t(cloudAfterDel.data.picks.length === before - 1, '删除已落库')
+
+    // ⑤ 连点切换（保存还没回来就接着点）：最后一次必须赢
+    tapMode('auto')
+    tapMode('manual')
+    tapMode('auto')
+    await flush(); await flush(); await flush()
+    t(page.data.mode === 'auto', `连点 3 次后停在最后一次点的模式（实际 ${page.data.mode}）`)
+    const cloudAfterBurst = await statsFn.main({ action: 'quickPicks' })
+    t(cloudAfterBurst.data.source === 'auto', '连点后云端与界面一致（串行写库，不是"先发的旧值覆盖后发的"）')
+    t(page.data.saving === false, '连点结束后 saving 归位（不会卡在"保存中…"）')
+
+    // ⑥ 写云端失败 → 提示 + 以云端为准重新同步（不拿过期快照覆盖界面）
+    tapMode('manual'); await flush()
+    const goodLen = page.data.myList.length
+    toasts = []
+    failCloud = '网络错误'
+    page.onDelete({ currentTarget: { dataset: { index: 0 } } })
+    await flush(); await flush()
+    t(toasts.length === 1, `保存失败要提示用户（实际 ${toasts.length} 次）`)
+    t(page.data.myList.length === goodLen, '失败后界面回到云端的真实状态（删掉的那条又回来了）')
+    t(page.data.saving === false, '失败后 saving 不会卡在 true')
+
+    delete global.wx
+  }
+
   console.log('\n' + (fail ? '❌ ' + fail + ' 项未通过' : '✅ 全部通过'))
   process.exit(fail ? 1 : 0)
 })()
