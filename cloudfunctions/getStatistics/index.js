@@ -792,7 +792,12 @@ async function buildInsightData(openid, requestedDays) {
     const cid = r.categoryId || 'other_expense'
     const meta = CATEGORY_META[cid] || {}
     const name = meta.name || r.category || '其他支出'
-    largeCatMap[name] = (largeCatMap[name] || 0) + amt
+    // ⚠️「其他支出」只计入大额合计，不参与"主要类目"的评选：
+    //    "主要集中在其他支出"对用户没有任何含义（他本来就不知道里面是什么），
+    //    还不如让他看金额。判定口径与 insight.js 的类目规则同一份（isOtherCatName）。
+    if (!insight.isOtherCatName(name)) {
+      largeCatMap[name] = (largeCatMap[name] || 0) + amt
+    }
   })
 
   const largeTopCategory = Object.keys(largeCatMap).length

@@ -451,6 +451,84 @@ async function main() {
   })) == null, '只有一个类目 → 不触发（"是第二名的几倍"没有意义）')
 
   // ================================================================
+  console.log('\n=== 4.1) 「其他支出」不能被当成最大支出类目 ===')
+  // ================================================================
+  // 兜底桶不是真实消费结构：账单认得不出类目的都塞进「其他支出」，
+  // 它经常是第一大类。此前会输出「其他支出占了支出的 42%，是第二名餐饮的 2.1 倍」——
+  // 既无法核对（里面装了什么没人知道），也没有任何可行动的含义。
+  {
+    // ① 其他 45% > 餐饮 30%：不能说"其他支出占了 45%"，也不能把餐饮抬成"集中"
+    //    （餐饮真实占比只有 30%，低于 35% 阈值 → 宁可不给结论）
+    const otherTop = rules.detectCategory(baseSummary({
+      categories: [
+        { id: 'other_expense', name: '其他支出', amount: 450, count: 9 },
+        { id: 'food', name: '餐饮', amount: 300, count: 8 },
+        { id: 'transport', name: '交通', amount: 250, count: 5 }
+      ]
+    }))
+    t(otherTop == null, `其他支出占 45% 时不输出类目结论（实际 ${otherTop && otherTop.title}）`)
+
+    // ② 餐饮自己够 35%：可以讲，但"第二名"必须是真实类目（不能是其他支出），
+    //    并且要说明还有一大块没能归类 —— 否则用户会疑惑"我只花了 60%？"
+    const realTop = rules.detectCategory(baseSummary({
+      total: 1000,
+      categories: [
+        { id: 'food', name: '餐饮', amount: 400, count: 8 },
+        { id: 'other_expense', name: '其他支出', amount: 350, count: 6 },
+        { id: 'transport', name: '交通', amount: 250, count: 5 }
+      ]
+    }))
+    t(realTop != null, '餐饮占 40%（高于阈值）→ 触发')
+    if (realTop) {
+      t(realTop.title.indexOf('其他支出') === -1, `标题不能是"其他支出"（实际 ${realTop.title}）`)
+      t(realTop.detail.indexOf('第二名其他支出') === -1, '第二名不能是「其他支出」')
+      t(realTop.detail.indexOf('第二名交通') !== -1, `第二名应是真实类目交通（实际 ${realTop.detail}）`)
+      t(realTop.detail.indexOf('另有') !== -1 && realTop.detail.indexOf('认出类别') !== -1,
+        '其他支出占比大时补一句"另有 ¥X 没能认出类别"（讲清剩下的钱去哪了）')
+    }
+
+    // ③ 其他占比小时不啰嗦：不硬加那句说明
+    const smallOther = rules.detectCategory(baseSummary({
+      total: 1000,
+      categories: [
+        { id: 'food', name: '餐饮', amount: 600, count: 8 },
+        { id: 'transport', name: '交通', amount: 300, count: 5 },
+        { id: 'other_expense', name: '其他支出', amount: 100, count: 2 }
+      ]
+    }))
+    t(smallOther != null && smallOther.detail.indexOf('另有') === -1,
+      '其他支出只占 10% 时不加那句说明（别为了完整而啰嗦）')
+
+    // ④ 只有「其他支出」+ 一个真实类目：凑不出"第二名"，不触发
+    t(rules.detectCategory(baseSummary({
+      categories: [
+        { id: 'other_expense', name: '其他支出', amount: 600, count: 8 },
+        { id: 'food', name: '餐饮', amount: 400, count: 8 }
+      ]
+    })) == null, '剔掉其他支出后只剩一个类目 → 不触发')
+
+    // ⑤ 按 id 判断，不只看名字（导入账单可能没有 meta，名字是兜底值）
+    t(rules.detectCategory(baseSummary({
+      total: 1000,
+      categories: [
+        { id: 'other_expense', name: '未分类', amount: 700, count: 9 },
+        { id: 'food', name: '餐饮', amount: 200, count: 8 },
+        { id: 'transport', name: '交通', amount: 100, count: 3 }
+      ]
+    })) == null, '按 id=other_expense 也能认出兜底桶（名字被兜底成"未分类"时也算）')
+
+    // ⑥ 数字审计也要覆盖新文案（含那句"另有 ¥X"）
+    if (realTop) audit([realTop], baseSummary({
+      total: 1000,
+      categories: [
+        { id: 'food', name: '餐饮', amount: 400, count: 8 },
+        { id: 'other_expense', name: '其他支出', amount: 350, count: 6 },
+        { id: 'transport', name: '交通', amount: 250, count: 5 }
+      ]
+    }), '类目结论里的「另有 ¥X」')
+  }
+
+  // ================================================================
   console.log('\n=== 5) 日均涨跌：比例与绝对额都要够大 ===')
   // ================================================================
   // ⚠️ 用「日均」而不是「总额」比 —— 总额比较要求两个周期都是满的，
@@ -733,6 +811,58 @@ async function main() {
   DB.users = [{ _id: 'u0', _openid: 'me', uid: 'u0', vip: { since: 1 } }]   // 会员但没有预算
   const r4 = await runInsight()
   t(!r4.data.insights.some(x => x.id === 'budget'), '没设预算 → 不出现预算结论')
+
+  // ================================================================
+  console.log('\n=== 14) 端到端：「其他支出」占大头时不能变成"最大类目" ===')
+  // ================================================================
+  // 这是用户实际遇到的：导入账单里一大半认不出类目 → 全归到「其他支出」，
+  // 于是 AI 分析经常给出一句"其他支出占了支出的 40%"，看着像结论、其实什么都没有。
+  // 这里用真实记录走一遍云函数，确认端到端也不会冒出这句话。
+  freeze(2026, 10, 16, 10, 0)
+  reset()
+
+  // 其他支出 900（3 笔），餐饮 240，交通 120 → 其他占 71%
+  addBill(bjTs(2026, 10, 15, 12, 0), 'expense', 400, '', '其他支出', '未知商户A')
+  addBill(bjTs(2026, 10, 14, 12, 0), 'expense', 300, '', '其他支出', '未知商户B')
+  addBill(bjTs(2026, 10, 13, 12, 0), 'expense', 200, '', '其他支出', '未知商户C')
+  addBill(bjTs(2026, 10, 12, 12, 0), 'expense', 120, 'food', '餐饮', '美团外卖')
+  addBill(bjTs(2026, 10, 11, 12, 0), 'expense', 120, 'food', '餐饮', '美团外卖')
+  addBill(bjTs(2026, 10, 10, 12, 0), 'expense', 120, 'transport', '交通', '滴滴')
+
+  const rOther = await runInsight()
+  t(rOther.code === 0, '其他支出占大头时正常返回')
+  const catIns = rOther.data.insights.find(x => x.id === 'category')
+  t(catIns == null, `不给类目集中结论（餐饮只有 25%，不足以说"集中"；实际 ${catIns && catIns.title}）`)
+
+  // 每条结论里都不许出现"其他支出占…"这种话
+  const otherTitles = rOther.data.insights.filter(x =>
+    /其他支出占了|集中在其他支出/.test(x.title + x.detail))
+  t(otherTitles.length === 0,
+    `没有任何一条结论把「其他支出」当主要类目（实际 ${otherTitles.map(x => x.title).join(' / ') || '无'}）`)
+
+  audit(rOther.data.insights, rOther.data.summary, '其他支出占大头')
+
+  // 但「其他支出」的金额仍然计入总支出 —— 分母不能为了好看而缩水
+  t(rOther.data.summary.total === 1260, `总支出仍是全口径 ¥1260（实际 ${rOther.data.summary.total}）`)
+
+  // 大额里的"主要类目"也不能是其他支出
+  freeze(2026, 10, 16, 10, 0)
+  reset()
+  addBill(bjTs(2026, 10, 15, 12, 0), 'expense', 900, '', '其他支出', '未知商户A')   // 大额，但没有类目
+  addBill(bjTs(2026, 10, 14, 12, 0), 'expense', 700, 'shopping', '购物', '某商城')   // 大额，认得出
+  addBill(bjTs(2026, 10, 13, 12, 0), 'expense', 120, 'food', '餐饮', '美团外卖')
+  addBill(bjTs(2026, 10, 12, 12, 0), 'expense', 80, 'transport', '交通', '滴滴')
+
+  const rLarge = await runInsight()
+  const largeIns = rLarge.data.insights.find(x => x.id === 'large')
+  t(!!largeIns, `有 ≥¥500 的单笔 → 出现大额结论（实际触发：${rLarge.data.insights.map(x => x.id).join(',') || '无'}）`)
+  if (largeIns) {
+    t(largeIns.evidence.every(e => e.value !== '其他支出'),
+      `"主要类目"不是其他支出（实际 ${JSON.stringify(largeIns.evidence.map(e => e.value))}）`)
+    t(largeIns.detail.indexOf('集中在其他支出') === -1, '文案不说"主要集中在其他支出"（这句话没有任何含义）')
+    t(largeIns.evidence.some(e => e.value === '购物'), '主要类目落在认得出的那个类目上（购物）')
+  }
+  audit(rLarge.data.insights, rLarge.data.summary, '大额主要类目')
 
   Date.now = REAL_NOW
 

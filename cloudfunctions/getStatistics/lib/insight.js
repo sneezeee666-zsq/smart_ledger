@@ -43,8 +43,49 @@ const TH = {
   LARGE_MIN_COUNT: 1,         // 至少这么多笔才报
   MOONLIGHT_RATIO: 0.8,       // 月光：支出进度 ÷ 时间进度 达到这个数才预警
   MOONLIGHT_MIN_DAYS: 5,      // 月光：本月已过天数少于这个数时预测无意义
+  OTHER_NOTICE_RATIO: 0.3,    // 「其他支出」占到这个比例时，在类目结论里额外说明一句
   MIN_COUNT: 3,               // 少于这么多笔不给结论 —— 说明不了「习惯」
   MAX_ITEMS: 6                // 最多给几条 —— 结论一多就变成噪音
+}
+
+// ==================== 「其他支出 / 其他收入」是兜底桶 ====================
+//
+// 账单里认不出类目的支出全部归到「其他支出」（import 时 categoryId 为空 → other_expense）。
+// 它经常是第一大类，而且不是用户真实的消费结构 ——
+// 拿它当"最大支出类目"讲结论会误导人：
+//   ✗ 「其他支出占了支出的 42%，是第二名餐饮的 2.1 倍」
+//     这句话既不可核对（"其他"里装了什么没人知道），也没有任何可行动的含义。
+//
+// 所以凡是**类目占比**相关的判断都先把它剔出去；
+// 但账本整体金额的分母仍然是 total —— 不能为了让比例好看而缩小分母，
+// 那等于虚增"餐饮占 40%"。
+//
+// ⚠️ 判定口径只写在这里：index.js 算「单笔大额的主要类目」时也用这个函数，
+//    两处各写一套必然漂移（改了 id 忘了名字，就会出现"某天其他支出又冒出来"）。
+const OTHER_CAT_IDS = { other_expense: true, other_income: true }
+const OTHER_CAT_NAMES = { '其他支出': true, '其他收入': true, '其他': true }
+
+/** 这个类目是不是「其他」兜底桶（按 id 或展示名判断） */
+function isOtherCatName(name) {
+  return !!OTHER_CAT_NAMES[String(name || '').trim()]
+}
+
+function isOtherCat(c) {
+  if (!c) return true
+  if (OTHER_CAT_IDS[c.id]) return true
+  return isOtherCatName(c.name)
+}
+
+/**
+ * 把类目拆成「认得出的」和「其他」两堆。
+ * @returns {{ real: Array, other: Array }}
+ */
+function splitCats(cats) {
+  const list = Array.isArray(cats) ? cats : []
+  return {
+    real: list.filter(c => !isOtherCat(c)),
+    other: list.filter(c => isOtherCat(c))
+  }
 }
 
 // 展示优先级：数字小的排前面（同 level 时用）
@@ -254,10 +295,12 @@ function detectTrend(s) {
 
 /**
  * 支出集中在单个类目
- * ⚠️ 需要至少两个类目才能说「是第二名的几倍」。只有一个类目时这句话没有意义。
+ * ⚠️ 需要至少两个**认得出的**类目才能说「是第二名的几倍」。
+ *    只有一类时这句话没有意义；而「其他支出」不算认得出的类目（见文件开头的说明）。
  */
 function detectCategory(s) {
-  const cats = s.categories || []
+  const split = splitCats(s.categories)
+  const cats = split.real
   if (cats.length < 2) return null
 
   const top = cats[0]
@@ -267,12 +310,20 @@ function detectCategory(s) {
   const second = cats[1]
   const times = second.amount > 0 ? top.amount / second.amount : 0
 
+  // 「其他支出」占得多时补一句：否则用户会疑惑"我明明花了更多，
+  // 怎么分析里只讲到这部分" —— 说明哪个桶没被归类，比藏着更有用。
+  const other = split.other.reduce((sum, c) => sum + toNumber(c.amount), 0)
+  const otherNote = ratio(other, s.total) >= TH.OTHER_NOTICE_RATIO
+    ? '另有 ' + money(other) + '（' + ratioText(other, s.total) + '）归在「其他支出」，'
+      + '这些没能从账单里认出类别。'
+    : ''
+
   return make(
     'category', 'warn',
     top.name + '占了支出的 ' + Math.round(share * 100) + '%',
     '近 ' + s.days + ' 天在' + top.name + '上花了 ' + money(top.amount)
       + '，是第二名' + second.name + '（' + money(second.amount) + '）的 '
-      + times.toFixed(1) + ' 倍。',
+      + times.toFixed(1) + ' 倍。' + otherNote,
     [
       ev(top.name + '支出', money(top.amount)),
       ev('占支出比例', ratioText(top.amount, s.total)),
@@ -424,19 +475,28 @@ function detectLarge(s) {
   if (!large || !(large.count > 0)) return null
 
   const total = toNumber(s.total)
-  const share = ratio(large.amount, total)
+
+  // 主要类目可能没有（大额全是「其他支出」时，index.js 不给名字）——
+  // 那就别硬说一句"主要集中在—"，只讲金额。
+  const topCat = large.topCategory && !isOtherCatName(large.topCategory)
+    && large.topCategory !== '—'
+    ? large.topCategory
+    : ''
+
+  const evidence = [
+    ev('大额笔数', large.count + ' 笔'),
+    ev('大额合计', money(large.amount)),
+    ev('占支出比例', ratioText(large.amount, total))
+  ]
+  if (topCat) evidence.push(ev('主要类目', topCat))
 
   return make(
     'large', 'warn',
     large.count + ' 笔大额支出，占总支出的 ' + percent(large.amount, total) + '%',
     '单笔超过 ¥' + TH.LARGE_MIN_ABS + ' 或月均支出 20% 的共 ' + large.count + ' 笔，'
-      + '合计 ' + money(large.amount) + '，主要集中在' + large.topCategory + '。',
-    [
-      ev('大额笔数', large.count + ' 笔'),
-      ev('大额合计', money(large.amount)),
-      ev('占支出比例', ratioText(large.amount, total)),
-      ev('主要类目', large.topCategory)
-    ]
+      + '合计 ' + money(large.amount)
+      + (topCat ? '，主要集中在' + topCat + '。' : '。'),
+    evidence
   )
 }
 
@@ -536,6 +596,8 @@ module.exports = {
   toNumber: toNumber,
   round2: round2,
   TH: TH,
+  // 交给你判断类目是不是「其他」兜底桶（index.js 算大额主要类目时也用同一份口径）
+  isOtherCatName: isOtherCatName,
   PRIORITY: PRIORITY,
   LEVEL_WEIGHT: LEVEL_WEIGHT,
   // 导出单条规则，测试要能单独验证「不触发时返回 null」
