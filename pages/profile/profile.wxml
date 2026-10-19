@@ -76,7 +76,7 @@
       <text class="menu-arrow">›</text>
     </view>
 
-    <view class="menu-item menu-item-last" bindtap="openThemeSheet" hover-class="menu-hover" hover-stay-time="60">
+    <view class="menu-item" bindtap="openThemeSheet" hover-class="menu-hover" hover-stay-time="60">
       <!-- 图标不用 PNG，直接显示当前主题色：一眼就能看到现在用的是哪套色 -->
       <view class="menu-icon" style="background: {{themeBrand}}1F;">
         <view class="theme-dot" style="background: {{themeBrand}}"></view>
@@ -85,7 +85,17 @@
       <text class="menu-sub">{{themeName}}</text>
       <text class="menu-arrow">›</text>
     </view>
-    <!-- 后续设置项（预算设置、提醒等）加在这里，
+
+    <!-- 常记的：它是"配一个功能"，不是"看一段说明"，所以放在设置里 -->
+    <view class="menu-item menu-item-last" bindtap="goQuickPicks" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-indigo">
+        <image class="menu-img" src="/assets/icons/mi-pick.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">配置「常记的」</text>
+      <text class="menu-sub">快捷记账按钮</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <!-- 后续设置项（提醒等）加在这里，
          注意把 menu-item-last 挪到新的最后一项上 -->
   </view>
 
@@ -106,15 +116,6 @@
         <image class="menu-img" src="/assets/icons/mi-sliders.png" mode="aspectFit" />
       </view>
       <text class="menu-text">数据与隐私</text>
-      <text class="menu-arrow">›</text>
-    </view>
-
-    <view class="menu-item" bindtap="goQuickPicks" hover-class="menu-hover" hover-stay-time="60">
-      <view class="menu-icon ic-indigo">
-        <image class="menu-img" src="/assets/icons/mi-pick.png" mode="aspectFit" />
-      </view>
-      <text class="menu-text">常记的</text>
-      <text class="menu-sub">快捷记账按钮</text>
       <text class="menu-arrow">›</text>
     </view>
 
