@@ -171,6 +171,8 @@
 .ic-teal { background: #E3F5F2; }
 /* 赞赏爱心：暖红的浅底。与 ic-red（危险语义）的 #FDECEC 区分开 */
 .ic-rose { background: #FDEDF2; }
+/* 常记的书签：靛蓝浅底 */
+.ic-indigo { background: #EDECFE; }
 
 /* 主题色点：色值由 JS 按当前主题内联写入 */
 .theme-dot {

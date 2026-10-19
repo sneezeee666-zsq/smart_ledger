@@ -496,6 +496,11 @@ Page({
     this.setData({ showAboutSheet: false })
   },
 
+  /** 常记的配置页 */
+  goQuickPicks() {
+    wx.navigateTo({ url: '/pages/quick-manage/quick-manage' })
+  },
+
   // ---------------- 赞赏支持 ----------------
 
   showReward() {

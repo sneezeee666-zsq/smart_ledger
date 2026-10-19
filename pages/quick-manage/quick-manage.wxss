@@ -1,0 +1,303 @@
+/* ==========================================================================
+   常记的（配置页）
+   ========================================================================== */
+
+.qm-page {
+  height: 100vh;
+  background: var(--surface-2, #F2F5FA);
+}
+
+.qm-scroll {
+  height: 100%;
+  padding: 20rpx 24rpx calc(40rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+/* ---------- 说明 ---------- */
+
+.qm-intro {
+  padding: 8rpx 8rpx 24rpx;
+}
+
+.qm-intro-title {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.qm-intro-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.qm-intro-count {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-4);
+}
+
+/* ---------- 列表 ---------- */
+
+.qm-list {
+  position: relative;
+  background: var(--surface, #ffffff);
+  border-radius: 24rpx;
+  padding: 6rpx 0;
+  box-shadow: 0 4rpx 16rpx rgba(16, 26, 46, 0.05);
+}
+
+.qm-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  height: 96rpx;
+  margin: 6rpx 16rpx;
+  padding: 0 8rpx 0 14rpx;
+  border-radius: 18rpx;
+  background: var(--surface, #ffffff);
+  /* 让位移有过渡；拖动中的那一项由 is-drag 关掉过渡，否则会"追手指"发飘 */
+  transition: transform 0.16s ease;
+}
+
+.qm-item.is-drag {
+  z-index: 20;
+  transition: none;
+  box-shadow: 0 12rpx 32rpx rgba(16, 26, 46, 0.18);
+  background: var(--surface, #ffffff);
+  transform-origin: center;
+}
+
+.qm-badge {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.badge-expense {
+  background: var(--expense-soft, #E7F7EF);
+  color: var(--expense);
+}
+
+.badge-income {
+  background: var(--income-soft, #FDECEC);
+  color: var(--income);
+}
+
+.qm-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.qm-name {
+  font-size: 28rpx;
+  color: var(--ink-1);
+}
+
+.qm-amount {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+/* 上下移动 / 删除 */
+
+.qm-move,
+.qm-del {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 14rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.qm-move {
+  background: var(--surface-3, #F2F5FA);
+}
+
+.qm-move.is-off {
+  opacity: 0.3;
+}
+
+.qm-move-icon {
+  font-size: 24rpx;
+  color: var(--ink-2);
+}
+
+.qm-del {
+  color: var(--ink-3);
+  font-size: 24rpx;
+}
+
+/* ---------- 空状态 ---------- */
+
+.qm-empty {
+  background: var(--surface, #ffffff);
+  border-radius: 24rpx;
+  padding: 56rpx 32rpx;
+  text-align: center;
+}
+
+.qm-empty-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.qm-empty-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  color: var(--ink-4);
+}
+
+/* ---------- 推荐 ---------- */
+
+.qm-section {
+  display: block;
+  margin: 32rpx 8rpx 14rpx;
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.qm-recs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
+.qm-rec {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  max-width: 440rpx;
+  padding: 0 22rpx;
+  height: 68rpx;
+  border-radius: 999rpx;
+  background: var(--surface, #ffffff);
+  border: 1rpx solid var(--line);
+}
+
+.qm-rec-hover {
+  background: var(--surface-3, #F2F5FA);
+}
+
+.qm-rec-plus {
+  font-size: 26rpx;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.qm-rec-name {
+  font-size: 25rpx;
+  color: var(--ink-1);
+  max-width: 240rpx;
+}
+
+.qm-rec-amt {
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+/* ---------- 手动添加 ---------- */
+
+.qm-form {
+  background: var(--surface, #ffffff);
+  border-radius: 24rpx;
+  padding: 20rpx;
+}
+
+.qm-form-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.qm-form-row + .qm-form-row {
+  margin-top: 16rpx;
+}
+
+.qm-input {
+  flex: 1;
+  min-width: 0;
+  height: 80rpx;
+  padding: 0 20rpx;
+  border-radius: 16rpx;
+  background: var(--surface-3, #F2F5FA);
+  font-size: 27rpx;
+  color: var(--ink-1);
+  box-sizing: border-box;
+}
+
+.qm-input-amt {
+  flex: 0 0 200rpx;
+}
+
+.qm-ph {
+  color: var(--ink-4);
+}
+
+.qm-seg {
+  flex: 1;
+  display: flex;
+  gap: 10rpx;
+  background: var(--surface-3, #F2F5FA);
+  border-radius: 999rpx;
+  padding: 6rpx;
+}
+
+.qm-seg-item {
+  flex: 1;
+  text-align: center;
+  height: 56rpx;
+  line-height: 56rpx;
+  border-radius: 999rpx;
+  font-size: 25rpx;
+  color: var(--ink-2);
+}
+
+.qm-seg-item.active {
+  background: var(--surface, #ffffff);
+  font-weight: 600;
+}
+
+.qm-seg-item.active.is-expense {
+  color: var(--expense);
+}
+
+.qm-seg-item.active.is-income {
+  color: var(--income);
+}
+
+.qm-add-btn {
+  flex: 0 0 180rpx;
+  height: 68rpx;
+  line-height: 68rpx;
+  font-size: 26rpx;
+  padding: 0;
+}
+
+/* ---------- 脚注 ---------- */
+
+.qm-foot {
+  margin: 28rpx 8rpx 0;
+  font-size: 21rpx;
+  line-height: 1.7;
+  color: var(--ink-4);
+}

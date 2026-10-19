@@ -30,6 +30,14 @@ const BUDGET_MAX = 100000000
 // 用户输入 100.005 时看到的应该是「请检查」，不是悄悄变成 100.01。
 const BUDGET_DECIMALS = 2
 
+// 常记的（首页快捷记账面板的 chips）条数上限。
+// 前端 utils/quick-picks.js 有一份同样的 LIMIT，tests/static-check.js 对账。
+const QUICK_PICK_LIMIT = 10
+// 单条的字段上限，与「手动记账」同一口径（防手滑，不是拦合法输入）
+const QUICK_PICK_TITLE_MAX = 60
+const QUICK_PICK_PRODUCT_MAX = 120
+const QUICK_PICK_AMOUNT_MAX = 100000000
+
 // ==================== VIP 会员 ====================
 // 一次性买断、永久有效 —— 不做订阅、不做到期时间。
 // 「会员没有过期」意味着 vip 里只需要一个激活时间，没有"什么时候失效"这个概念，
@@ -75,6 +83,10 @@ exports.main = async (event, context) => {
 
     if (action === 'setBudget') {
       return await setBudget(openid, event)
+    }
+
+    if (action === 'setQuickPicks') {
+      return await setQuickPicks(openid, event)
     }
 
     if (action === 'createVipOrder') {
@@ -158,8 +170,28 @@ function publicProfile(doc) {
     nickname: typeof doc.nickname === 'string' ? doc.nickname : '',
     theme: typeof doc.theme === 'string' ? doc.theme : '',
     budget: readBudget(doc),
-    vip: readVip(doc)
+    vip: readVip(doc),
+    quickPicks: readQuickPicks(doc)
   }
+}
+
+/**
+ * 归一化库里的「常记的」。
+ *
+ * ⚠️ 三态必须分清，否则"删不掉"或"删了就回不来"：
+ *    - 字段**不存在**（undefined）→ 返回 null，表示「没配置过」→ 面板显示按账单自动推荐的
+ *    - `[]`（空数组）→ 返回 []，表示「用户主动清空了」→ 面板就该是空的，**不能再回退到推荐**
+ *      （用户费劲删完又冒出来，会以为删不掉）
+ *    - 有内容 → 返回清洗后的数组
+ *
+ * @returns {Array|null}
+ */
+function readQuickPicks(doc) {
+  const raw = doc && doc.quickPicks
+  if (!Array.isArray(raw)) return null
+
+  const r = normalizeQuickPicks(raw)
+  return r.ok ? r.value : []
 }
 
 /**
@@ -311,6 +343,110 @@ async function setBudget(openid, event) {
       theme: got.data.theme,
       budget: r.value > 0 ? { amount: r.value, updateTime: now } : null,
       vip: got.data.vip
+    }
+  }
+}
+
+// ==================== 常记的（首页快捷记账 chips） ====================
+
+/**
+ * 校验并归一化「常记的」列表。
+ *
+ * ⚠️ 这里选择**拒绝**而不是静默丢弃非法项：
+ *    静默丢弃会让"我明明配了 10 个，怎么只剩 8 个"变成无法解释的现象。
+ *    前端 utils/quick-picks.js 有同一份校验，正常永远走不到这里报错。
+ *
+ * @returns {{ ok: boolean, value?: Array, message?: string }}
+ */
+function normalizeQuickPicks(raw) {
+  if (!Array.isArray(raw)) return { ok: false, message: '常记的必须是数组' }
+  if (raw.length > QUICK_PICK_LIMIT) {
+    return { ok: false, message: '最多只能有 ' + QUICK_PICK_LIMIT + ' 个常记项' }
+  }
+
+  const out = []
+  const seen = {}
+
+  for (let i = 0; i < raw.length; i++) {
+    const r = normalizeQuickPickItem(raw[i])
+    if (!r.ok) return { ok: false, message: '第 ' + (i + 1) + ' 个常记项不可用：' + r.message }
+
+    // 判重键：同名同收支算同一条（与前端 keyOf 一致）
+    const k = r.value.type + '|' + r.value.title
+    if (seen[k]) return { ok: false, message: '「' + r.value.title + '」重复了' }
+    seen[k] = true
+    out.push(r.value)
+  }
+
+  return { ok: true, value: out }
+}
+
+function normalizeQuickPickItem(raw) {
+  if (!raw || typeof raw !== 'object') return { ok: false, message: '格式不正确' }
+
+  const title = String(raw.title || '').trim()
+  if (!title) return { ok: false, message: '对方名不能为空' }
+  // 按 Unicode 字符数算（与昵称同一条约定：emoji 在 UTF-16 里占两个码元）
+  if (Array.from(title).length > QUICK_PICK_TITLE_MAX) {
+    return { ok: false, message: '对方名太长（最多 ' + QUICK_PICK_TITLE_MAX + ' 字）' }
+  }
+
+  const amount = Math.round(Number(raw.amount) * 100) / 100
+  if (!(amount > 0) || amount > QUICK_PICK_AMOUNT_MAX) {
+    return { ok: false, message: '金额需大于 0 且不超过 1 亿' }
+  }
+
+  return {
+    ok: true,
+    value: {
+      title: title,
+      type: raw.type === 'income' ? 'income' : 'expense',
+      amount: amount,
+      product: String(raw.product || '').trim().slice(0, QUICK_PICK_PRODUCT_MAX),
+      categoryId: String(raw.categoryId || '').trim().slice(0, 40)
+    }
+  }
+}
+
+/**
+ * 保存「常记的」—— **全量覆盖**语义。
+ *
+ * ⚠️ 为什么不是"增删单条"：这个列表要支持**拖动排序**，而排序本质上是
+ *    "整个顺序都变了"，逐条增删既表达不了顺序，还会产生一堆中间态
+ *    （删到一半失败 → 少了几个但顺序还是旧的）。整套替换只有一个写操作，
+ *    要么全成要么全不成。
+ */
+async function setQuickPicks(openid, event) {
+  const r = normalizeQuickPicks(event && event.picks)
+  if (!r.ok) return bad(r.message)
+
+  // 先确保档案存在：用户可能第一次进来就直接配常记的
+  const got = await getProfile(openid)
+  if (got.code !== 0) return got
+
+  const now = Date.now()
+
+  // ⚠️ 空数组要**真的存成 []**（而不是 remove 字段）：
+  //    "用户清空了"和"从没配置过"是两种状态 —— 前者不该再回退到自动推荐，
+  //    否则用户费劲删完，回首页又冒出来，只会以为删不掉。
+  // ⚠️ 归属条件 _openid 必须在（云函数是管理员身份，只按 _id 更新等于开放所有人档案）
+  const res = await db.collection(USERS)
+    .where({ _openid: openid })
+    .update({ data: { quickPicks: r.value, updatedAt: now } })
+
+  if (!res || !res.stats || !res.stats.updated) {
+    return bad('保存失败，请重试')
+  }
+
+  return {
+    code: 0,
+    data: {
+      uid: got.data.uid,
+      nickname: got.data.nickname,
+      theme: got.data.theme,
+      budget: got.data.budget,
+      vip: got.data.vip,
+      quickPicks: r.value
     }
   }
 }

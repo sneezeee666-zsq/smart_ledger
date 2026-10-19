@@ -1,0 +1,113 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<view class="qm-page theme-{{theme}}">
+  <!-- ⚠️ 用 scroll-view 并动态关掉 scroll-y：
+       拖动排序时如果页面还能滚，手指上下移动会把页面一起带着滚，
+       拖拽位置就算不准了（这是小程序里做拖拽排序最容易翻车的地方）。 -->
+  <scroll-view scroll-y="{{!dragging}}" class="qm-scroll">
+
+    <view class="qm-intro">
+      <text class="qm-intro-title">常记的</text>
+      <text class="qm-intro-desc">首页「记一笔」面板上的快捷按钮。最多 {{limit}} 个，长按可以拖动排序。</text>
+      <text class="qm-intro-count">{{list.length}} / {{limit}}</text>
+    </view>
+
+    <!-- ==================== 列表 ==================== -->
+    <view class="qm-list" wx:if="{{list.length > 0}}">
+      <view
+        wx:for="{{list}}"
+        wx:key="key"
+        class="qm-item {{dragIndex === index ? 'is-drag' : ''}} {{item.type === 'income' ? 'is-income' : ''}}"
+        style="transform: translateY({{dragIndex === index ? dragY : offsets[index]}}px);"
+        data-index="{{index}}"
+        bindlongpress="onLongPress"
+        bindtouchmove="onTouchMove"
+        bindtouchend="onTouchEnd"
+        bindtouchcancel="onTouchEnd"
+      >
+        <view class="qm-badge {{item.type === 'income' ? 'badge-income' : 'badge-expense'}}">
+          {{item.type === 'income' ? '+' : '−'}}
+        </view>
+
+        <view class="qm-body">
+          <text class="qm-name text-ellipsis">{{item.title}}</text>
+          <text class="qm-amount num">¥{{fmt.amount(item.amount)}}</text>
+        </view>
+
+        <!-- 上下移动：长按拖动之外的兜底方式（拖动在个别机型上会被系统手势打断） -->
+        <view class="qm-move {{index === 0 ? 'is-off' : ''}}" data-index="{{index}}" data-dir="-1" catchtap="onMove">
+          <text class="qm-move-icon">↑</text>
+        </view>
+        <view class="qm-move {{index === list.length - 1 ? 'is-off' : ''}}" data-index="{{index}}" data-dir="1" catchtap="onMove">
+          <text class="qm-move-icon">↓</text>
+        </view>
+
+        <view class="qm-del" data-index="{{index}}" catchtap="onDelete">✕</view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="qm-empty" wx:else>
+      <text class="qm-empty-title">还没有常记的</text>
+      <text class="qm-empty-desc">从下面的推荐里挑一个，或者自己添加</text>
+    </view>
+
+    <!-- ==================== 从账单推荐 ==================== -->
+    <block wx:if="{{recs.length > 0}}">
+      <text class="qm-section">根据你的账单推荐</text>
+      <view class="qm-recs">
+        <view
+          class="qm-rec"
+          wx:for="{{recs}}"
+          wx:key="key"
+          data-index="{{index}}"
+          bindtap="onAddRec"
+          hover-class="qm-rec-hover"
+          hover-stay-time="60"
+        >
+          <text class="qm-rec-plus">+</text>
+          <text class="qm-rec-name text-ellipsis">{{item.title}}</text>
+          <text class="qm-rec-amt num">¥{{fmt.amount(item.amount)}}</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- ==================== 手动添加 ==================== -->
+    <text class="qm-section">手动添加</text>
+    <view class="qm-form">
+      <view class="qm-form-row">
+        <input
+          class="qm-input"
+          value="{{draftTitle}}"
+          placeholder="对方名，如 地铁"
+          placeholder-class="qm-ph"
+          maxlength="{{titleMax}}"
+          bindinput="onDraftTitle"
+        />
+        <input
+          class="qm-input qm-input-amt num"
+          type="digit"
+          value="{{draftAmount}}"
+          placeholder="金额"
+          placeholder-class="qm-ph"
+          bindinput="onDraftAmount"
+        />
+      </view>
+
+      <view class="qm-form-row">
+        <view class="qm-seg">
+          <view class="qm-seg-item {{draftType === 'expense' ? 'active is-expense' : ''}}" data-type="expense" bindtap="onDraftType">支出</view>
+          <view class="qm-seg-item {{draftType === 'income' ? 'active is-income' : ''}}" data-type="income" bindtap="onDraftType">收入</view>
+        </view>
+        <button class="btn-primary qm-add-btn" bindtap="onAddDraft" disabled="{{saving}}">
+          {{saving ? '保存中…' : '添加'}}
+        </button>
+      </view>
+    </view>
+
+    <view class="qm-foot">
+      <text>改完自动保存，不用点确认。清空后首页面板就不再显示快捷按钮（也不会自动推荐）。</text>
+    </view>
+
+  </scroll-view>
+</view>

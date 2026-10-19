@@ -109,6 +109,15 @@
       <text class="menu-arrow">›</text>
     </view>
 
+    <view class="menu-item" bindtap="goQuickPicks" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-indigo">
+        <image class="menu-img" src="/assets/icons/mi-pick.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">常记的</text>
+      <text class="menu-sub">快捷记账按钮</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
     <view class="menu-item" bindtap="showReward" hover-class="menu-hover" hover-stay-time="60">
       <view class="menu-icon ic-rose">
         <image class="menu-img" src="/assets/icons/mi-reward.png" mode="aspectFit" />

@@ -1003,6 +1003,35 @@ console.log('【18】昵称常量 / 版本号 / 存储键 对账')
       console.log(`   昵称长度（${readConst(uSrc, 'NICK_MIN')}-${readConst(uSrc, 'NICK_MAX')} 个字符）`
         + `与预算常量（上限 ${readConst(uSrc, 'BUDGET_MAX')}，${readConst(uSrc, 'BUDGET_DECIMALS')} 位小数）前后端一致`)
     }
+
+    // ---- 常记的：上限写在三处 ----
+    // 前端 utils/quick-picks.js 的 LIMIT、user 云函数的 QUICK_PICK_LIMIT、
+    // getStatistics 的 QUICK_PICK_LIMIT。
+    // 任一处改了、另两处没跟上就会静默出错：
+    //   前端 10 / 后端 6 → 面板能加到第 10 个，一保存就被拒（"保存失败"却看不出原因）
+    //   推荐 10 / 列表 6 → 推荐里点第 7 个永远加不进去
+    {
+      const pickUtil = path.join(ROOT, 'utils', 'quick-picks.js')
+      const statsFn = path.join(ROOT, 'cloudfunctions', 'getStatistics', 'index.js')
+      const grab = (p, name) => {
+        if (!exists(p)) return null
+        const m = read(p).match(new RegExp('const\\s+' + name + '\\s*=\\s*(\\d+)'))
+        return m ? m[1] : null
+      }
+      const a = grab(pickUtil, 'LIMIT')
+      const b = grab(userFn, 'QUICK_PICK_LIMIT')
+      const c = grab(statsFn, 'QUICK_PICK_LIMIT')
+
+      if (a === null) err('utils/quick-picks.js', '找不到常记的条数上限 LIMIT')
+      else if (b === null) err('cloudfunctions/user/index.js', '找不到 QUICK_PICK_LIMIT')
+      else if (c === null) err('cloudfunctions/getStatistics/index.js', '找不到 QUICK_PICK_LIMIT')
+      else if (a !== b || b !== c) {
+        err('常记的上限', `三处不一致：前端 ${a} / user 云函数 ${b} / getStatistics ${c}` +
+          ' —— 会出现「面板能加到第 N 个，保存却被拒」且看不出原因')
+      } else {
+        console.log(`   常记的上限三处一致（${a} 个）`)
+      }
+    }
   }
 }
 

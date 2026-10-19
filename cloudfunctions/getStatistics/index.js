@@ -102,7 +102,8 @@ exports.main = async (event) => {
       return await buildInsightData(openid, event.days)
     }
     if (action === 'quickPicks') {
-      return await buildQuickPicks(openid)
+      // forceAuto：配置页需要「按账单推荐」作为候选，即使已经配置过也要拿到它
+      return await buildQuickPicks(openid, !!event.forceAuto)
     }
     return await buildIndexData(openid)
   } catch (err) {
@@ -535,23 +536,63 @@ const INSIGHT_SCOPES = [7, 30]
 
 // 扫最近 90 天：够覆盖"常买的东西"，又不会把一年前的旧习惯翻出来
 const QUICK_PICK_DAYS = 90
-// 面板里最多放 6 个 chip：再多就变成"另一个列表"，反而慢
-const QUICK_PICK_LIMIT = 6
+// 面板里最多放 10 个 chip（用户可在「我的 → 常记的」里自己配）
+const QUICK_PICK_LIMIT = 10
+
+/**
+ * 读用户手动配置的「常记的」。
+ *
+ * 三态（与 user 云函数 publicProfile 的约定一致）：
+ *   - 字段不存在 → null，表示「没配置过」→ 回退到按账单自动推荐
+ *   - []         → 用户主动清空了 → 就返回空，**不再推荐**
+ *     （用户费劲删完又被推荐回来，只会以为删不掉）
+ *   - 有内容     → 原样用（顺序就是用户在配置页拖出来的顺序）
+ *
+ * @returns {Array|null}
+ */
+async function fetchUserPicks(openid) {
+  const res = await db.collection('users')
+    .where({ _openid: openid })
+    .limit(1)
+    .get()
+
+  const doc = res && res.data && res.data.length ? res.data[0] : null
+  const raw = doc && doc.quickPicks
+  if (!Array.isArray(raw)) return null
+
+  // 只保留画 chip 需要的字段，不把 users 文档里的其它东西带出去
+  return raw.slice(0, QUICK_PICK_LIMIT).map(x => ({
+    title: String((x && x.title) || ''),
+    type: (x && x.type) === 'income' ? 'income' : 'expense',
+    amount: Number((x && x.amount)) || 0,
+    product: String((x && x.product) || ''),
+    categoryId: String((x && x.categoryId) || ''),
+    count: 0          // 手动配置的没有"出现次数"这个概念，置 0 由前端决定怎么展示
+  }))
+}
 
 /**
  * 挑出「常记的那几笔」，供首页快捷记账面板一键复用。
  *
- * 聚合口径：按「交易对方 + 收/支」分组，只保留出现 ≥2 次的；
- * 每组的金额/商品/分类取**最近一次**的值 —— 点 chip 就是"照上次那样再记一笔"，
+ * ⚠️ 优先用**用户手动配置**的列表；没配置过才按账单自动推荐。
+ *    两者都不该返回敏感字段（只有对方/金额/分类），面板是要展示给用户点选的。
+ *
+ * 自动推荐的口径：按「交易对方 + 收/支」分组，只留出现 ≥2 次的；
+ * 每组的金额取**最近一次**的值 —— 点 chip 就是"照上次那样再记一笔"，
  * 金额取最近一次比取平均值更符合直觉（咖啡涨价了，就该记涨后的价）。
  *
- * ⚠️ 必须在云端算：客户端 db.collection().get() 单次最多 20 条，
+ * ⚠️ 必须在云端聚合：客户端 db.collection().get() 单次最多 20 条，
  *    根本统计不出"高频"。
- * ⚠️ 不返回任何敏感字段（只有对方/金额/分类），面板是要展示给用户点选的。
  *
- * @returns {Object} { code, data: { picks: [{ title, type, amount, product, categoryId, count }] } }
+ * @returns {Object} { code, data: { picks, source } }
+ *   source: 'user'（用户配置）| 'auto'（按账单推荐）
  */
-async function buildQuickPicks(openid) {
+async function buildQuickPicks(openid, forceAuto) {
+  const userPicks = forceAuto ? null : await fetchUserPicks(openid)
+  if (userPicks !== null) {
+    return { code: 0, data: { picks: userPicks, source: 'user' } }
+  }
+
   const nowTs = Date.now()
   const from = startOfDay(nowTs) - (QUICK_PICK_DAYS - 1) * DAY_MS
 
@@ -587,7 +628,7 @@ async function buildQuickPicks(openid) {
       count: g.count
     }))
 
-  return { code: 0, data: { picks }, scanned: records.length }
+  return { code: 0, data: { picks, source: 'auto' }, scanned: records.length }
 }
 
 async function buildInsightData(openid, requestedDays) {

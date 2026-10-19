@@ -98,7 +98,7 @@ const ROOT = path.join(__dirname, '..')
   console.log('\n=== 4) 页面级：每个页面都真的能转发（Page 桩）===')
   // ================================================================
   {
-    const PAGES = ['index', 'bills', 'stats', 'ai', 'profile', 'import', 'add-bill', 'budget', 'vip']
+    const PAGES = ['index', 'bills', 'stats', 'ai', 'profile', 'import', 'add-bill', 'budget', 'vip', 'quick-manage']
     const appJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.json'), 'utf8'))
 
     // 与 app.json 注册的页面对齐（漏一个就是这个 bug 复发）

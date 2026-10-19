@@ -36,7 +36,7 @@ const BUDGET_DECIMALS = 2
 // ⚠️ 嵌套对象（{budget:{amount}}）看着更整齐，但"只改一个子字段"时
 //    必须区分「这次没传」和「这次传了 null」，稍有不慎就会把没动过的字段清零。
 //    扁平结构下 undefined 天然表示"没传"，判断只有一处。
-const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, vipSince: 0 }
+const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, vipSince: 0, quickPicks: null }
 
 // 本机缓存（进程内），避免每次读 storage
 let cached = null
@@ -61,7 +61,9 @@ function readStorage() {
         theme: str(raw.theme, ''),
         budget: hasBudget ? Math.round(budget * 100) / 100 : 0,
         budgetTime: hasBudget ? (Number(raw.budgetTime) || 0) : 0,
-        vipSince: Number(raw.vipSince) > 0 ? Number(raw.vipSince) : 0
+        vipSince: Number(raw.vipSince) > 0 ? Number(raw.vipSince) : 0,
+        // null = 没配置过「常记的」；数组（含空数组）= 配置过
+        quickPicks: Array.isArray(raw.quickPicks) ? raw.quickPicks : null
       }
     }
   } catch (e) {
@@ -124,13 +126,24 @@ function merge(partial) {
     vipSince = since > 0 ? since : 0
   }
 
+  // 「常记的」三态：
+  //   undefined —— 这次没动，保留本机值
+  //   null      —— 服务端说"从没配置过" → 本机也存 null（回首页会按账单推荐）
+  //   []/数组   —— 配置过。⚠️ 空数组要**原样保留**：它表示"用户主动清空了"，
+  //                不能塌缩成 null，否则用户删完 chips 又会看到推荐项冒出来
+  let quickPicks = cur.quickPicks
+  if (p.quickPicks !== undefined) {
+    quickPicks = Array.isArray(p.quickPicks) ? p.quickPicks : null
+  }
+
   return writeStorage({
     uid: str(p.uid, cur.uid),
     nickname: str(p.nickname, cur.nickname),
     theme: str(p.theme, cur.theme),
     budget: budget,
     budgetTime: budgetTime,
-    vipSince: vipSince
+    vipSince: vipSince,
+    quickPicks: quickPicks
   })
 }
 
@@ -359,6 +372,43 @@ function adoptRemoteTheme() {
   return true
 }
 
+// ==================== 常记的（首页快捷记账 chips） ====================
+
+/**
+ * 用户手动配置的「常记的」。
+ *
+ * @returns {Array|null} null = **从没配置过**（首页会按账单自动推荐）；
+ *                       数组（含空数组）= 配置过（空数组表示用户主动清空了）
+ */
+function quickPicks() {
+  const v = current().quickPicks
+  return Array.isArray(v) ? v : null
+}
+
+/**
+ * 保存「常记的」（整套覆盖 —— 排序/增删都走这里）。
+ *
+ * ⚠️ 与 setNickname 一样：**说了算的是云函数**，本机只是镜像。
+ *    传空数组是合法操作（表示清空），不会被当成"没配置"。
+ *
+ * @param {Array} list
+ * @returns {Promise<Array>} 云端归一化后的列表
+ */
+function setQuickPicks(list) {
+  const arr = Array.isArray(list) ? list : []
+
+  return wx.cloud.callFunction({
+    name: 'user',
+    data: { action: 'setQuickPicks', picks: arr }
+  }).then(res => {
+    const r = (res && res.result) || {}
+    if (r.code !== 0 || !r.data) throw new Error(r.message || '保存失败，请重试')
+    // merge 会处理三态：这里传的是数组（含空数组），所以本机会原样记下
+    merge({ quickPicks: r.data.quickPicks })
+    return r.data.quickPicks || []
+  })
+}
+
 module.exports = {
   STORAGE_KEY: STORAGE_KEY,
   NICK_MIN: NICK_MIN,
@@ -373,6 +423,8 @@ module.exports = {
   adoptRemoteTheme: adoptRemoteTheme,
   budget: budget,
   budgetTime: budgetTime,
+  quickPicks: quickPicks,
+  setQuickPicks: setQuickPicks,
   validateBudget: validateBudget,
   setBudget: setBudget,
   isVip: isVip,

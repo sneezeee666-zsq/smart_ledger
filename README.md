@@ -46,7 +46,10 @@
   - 恢复方式（三处一起翻）：`getStatistics/index.js` 的 `INSIGHT_REQUIRE_VIP` 改回 `true` + `pages/ai/ai.js` 的 `locked` 改回 `!user.isVip()` + 在「我的」页加回「会员中心」入口
   - 真实支付接入路径见 README「微信支付怎么接」（`createVipOrder` 调 `cloud.cloudPay.unifiedOrder` + 新增 `payCallback` 回调云函数）
 - ⚡ **首页半屏快捷记账**：点「记一笔」不再跳整页，半屏面板记完即关、停留首页（下一步就能看到刚记的那笔）。面板只放**金额 + 对方（可选）**，交易类型/支付方式/状态/时间全走云端默认值，想改就点「更多选项」进完整页（已填内容会带过去）
-  - **常记的一键复用**：chips 由云端 `quickPicks` 按近 90 天聚合（只留出现 ≥2 次的，金额取最近一次），**点一下预填、长按直接存** —— 每天同一杯咖啡只需长按一次
+  - **常记的一键复用**：chips 最多 **10 个**，**点一下预填、长按直接存**（每天同一杯咖啡只需长按一次）。来源分两种：
+    - **用户自己配的**（「我的 → 常记的」：增删 + 长按拖动排序 + ↑↓ 兜底 + 从账单推荐里挑），顺序就是面板上的顺序
+    - **没配过时**由云端 `quickPicks` 按近 90 天账单自动推荐（只留出现 ≥2 次的，金额取最近一次）
+    - ⚠️ **「没配置过」和「用户清空了」是两种状态**：前者自动推荐，后者就是空的 —— 用户费劲删完又被推荐回来，只会以为删不掉
   - **从顶部往下滑出（不是底部）**：键盘本身就是从屏幕底部升起的，面板若也在底部，键盘一来就得把面板往上顶，两层叠在一起视觉上"弹来弹去"。放上半屏 → 面板占上半屏、键盘占下半屏，天然不重叠，连"按键盘高度顶面板"的逻辑都不需要（弹层用常驻 DOM + class 控制才有 transition，`wx:if` 的节点首次渲染不触发动画）
   - 金额输入在前端就清洗成「最多两位小数」，脏值不会一路传到云函数才报错
 - 🆕 **AI 分析优化**：范围可选**近 7 天 / 近 30 天**两档；点击后模拟「深度思考」节奏（界面停留 3~10 秒并显示「深度思考中…请稍后…」，不向用户透露这是模拟）；规则从 7 条扩到 **10 条**（新增月光预警 / 深夜消费 / 单笔大额，「支出涨跌」改为「日均涨跌」）
@@ -368,6 +371,7 @@ smart-ledger/
 │   ├── ai/                   # 智能分析（**规则引擎版，不接模型**）：结论卡片 + 依据 + 范围切换（7/30 天）+ 会员门控（当前已关，见 INSIGHT_REQUIRE_VIP）+ 空/失败态
 │   ├── import/               # 导入账单（通栏自定义导航 → 上传 → 预览 → 去重 → 导入）
 │   ├── add-bill/             # 记一笔 / 改一笔（同一页两种模式：带 ?id= 进入编辑）
+│   ├── quick-manage/         # 常记的配置页（增删 + 拖动排序 + 从账单推荐里挑）
 │   ├── budget/               # 预算管理：本月进度（已花/剩余/每天还能花/月末预测）+ 额度设置
 │   ├── vip/                  # 会员中心：金色会员卡 + 功能对比表 + 开通（沙箱模拟支付）—— ⚠️ 入口暂隐藏，无页面跳转到它
 │   └── profile/              # 个人中心：数据管理 + 设置（我的昵称 / 主题颜色）+ 说明 + 关于（作者/邮箱/GitHub）
@@ -386,7 +390,7 @@ smart-ledger/
 │   │   ├── lib/insight.js    # 规则引擎（纯函数，10 条检测规则 + 金额格式化）
 │   │   └── package.json
 │   │
-│   └── user/                 # 用户档案（getProfile / updateProfile / setBudget）
+│   └── user/                 # 用户档案（getProfile / updateProfile / setBudget / setQuickPicks）
 │       ├── index.js
 │       └── package.json
 │
@@ -398,6 +402,7 @@ smart-ledger/
 │   ├── bill-form.js          # 记账/编辑表单的共用纯函数（UTC+8 时间反推 + 下拉原值保留）
 │   ├── bill-dedup.js         # 导入去重的挑拣纯函数（库重复 + 批内重复，前端本地判）
 │   ├── share.js              # 分享配置单一数据源（通用分享 / 统计页内容分享 / 朋友圈）
+│   ├── quick-picks.js        # 常记的纯函数（校验/去重/排序/增删，前端唯一规则来源）
 │   ├── chart-format.js       # 图表数字的共用纯函数（Y 轴刻度取整 + 缩写单位 + 颜色转 rgba）
 │   ├── remove-bill.js        # 删除账单的统一出口（确认弹窗 + 云函数调用 + 提示）
 │   └── version.js            # 版本号唯一来源（改版本只改这里）
@@ -406,7 +411,7 @@ smart-ledger/
 │   └── gen-icons.py          # 图标生成（从 utils/theme.js 读主题色，产出各主题 tabBar 图标）
 │
 ├── tests/                    # 离线自测（不需要开发者工具、不联网）
-│   ├── run-all.js            # 一键跑完下面 17 个套件
+│   ├── run-all.js            # 一键跑完下面 18 个套件
 │   ├── static-check.js       # 静态检查 21 组：语法/引用/绑定/主题一致性/资源冗余/变量可达性/按钮居中…
 │   ├── test.js               # getStatistics 各 action 的聚合断言（含日均分母）
 │   ├── time-test.js          # toTimestamp 解析（Excel 序列号 / 非法输入）
@@ -421,6 +426,7 @@ smart-ledger/
 │   ├── import-dedup-test.js  # 导入去重：只传判重键 / 大批量不截断 / 跨用户隔离 / 分批下标偏移
 │   ├── share-test.js         # 分享转发：隐私页不带用户数据 / 统计页带数字 / 每页都能转发
 │   ├── quick-add-test.js     # 快捷记账面板：金额清洗 / 点预填 vs 长按直存 / 提交形态
+│   ├── quick-picks-test.js   # 常记的：纯函数 / 云端保存 / 推荐优先级 / 清空语义
 │   ├── theme-test.js         # 主题：非法值回落 / 图标路径存在性 / 持久化 / 不重复 setData / 导航栏与下拉底色
 │   ├── user-test.js          # 用户档案：自动建档 / 昵称规则 / 越权 / 主题偏好回落 / 问候语
 │   └── vip-test.js           # VIP：激活幂等 / **非沙箱模式拒绝客户端直调（防白嫖）** / 档案合并不丢 vip 字段 / 脏 vip 归一化
@@ -499,7 +505,7 @@ smart-ledger/
 | `bills` | `{ period, type, categoryId, page, pageSize }` | `{ bills, total, totalIncome, totalExpense, hasMore }`；⚠️ `totalIncome`/`totalExpense` **只有 `page === 0` 有值，后页是 `null`**（前端据此保留第 0 页的汇总，不覆盖成 0）；`total` 与 `hasMore` 每页都有 |
 | `profile` | — | `{ totalBills, totalDays, firstTime, lastTime }` |
 | `budget` | — | `{ budget }` —— 预算进度块；**没设过预算是 `null`**（不是 `amount:0` 的对象） |
-| `quickPicks` | 无 | `{ picks: [{ title, type, amount, product, categoryId, count }] }` —— 首页快捷记账面板的「常记的」：按「对方 + 收/支」聚合近 90 天，只留出现 ≥2 次的，金额取**最近一次**（咖啡涨价就记涨后的价），最多 6 个 |
+| `quickPicks` | `forceAuto`（可选） | `{ picks: [...], source: 'user'|'auto' }` —— 首页面板的「常记的」，最多 **10** 个。**优先返回用户在「常记的」页配置的列表**（顺序即用户拖出来的顺序）；没配置过（字段不存在）才按「对方 + 收/支」聚合近 90 天推荐（只留 ≥2 次的，金额取最近一次）。⚠️ `quickPicks: []` 表示用户主动清空 → 返回空**且不回退推荐**；`forceAuto:true` 强制走推荐（配置页拿候选） |
 | `insight` | `days`（可选 `7`/`30`，默认 30） | `{ scope, insights[], summary, meta }` —— 近 N 天规则引擎结论。⚠️ 会员门控由 `INSIGHT_REQUIRE_VIP` 开关控制，**当前为 false（对所有人开放）**；改成 `true` 后非会员返回 `code:-2 + data.needVip` |`insights` 每条含 `id/level/title/detail/evidence[]`，**没有可说的结论时是空数组**（不返回套话）；`summary` 是算出这些结论的完整摘要，界面上不渲染、但测试与将来的 prompt 都用它 |
 
 `period` 取值：`day` | `week` | `month` | `year` | `all`（周一为一周之首；月末/年末截止到「今天」）
@@ -555,6 +561,7 @@ daysTotal, daysPassed, daysLeft, dailyAvg, dailyLeft, forecast, forecastOver, up
 | `getProfile`（默认） | — | `{ uid, nickname, theme, budget }`，无档案时自动创建一条空档案 |
 | `updateProfile` | `{ nickname?, theme? }` | 更新后的 `{ uid, nickname, theme, budget }` |
 | `setBudget` | `{ amount }` | 更新后的同一份档案。`amount` 传 `0` / 空串 = **取消预算** |
+| `setQuickPicks` | `{ picks: [{ title, type, amount }] }` | 更新后的同一份档案。**整套覆盖**（拖动排序本质是整个顺序变了），最多 10 条、同名同收支不能重复。⚠️ 传 `[]` 会真的存成空数组 —— 表示「用户清空了」，与「从没配置过」（字段不存在）是两种状态 |
 
 - `nickname`：2-12 个 **Unicode 字符**（emoji 算 1 个），自动去首尾空白，
   拒收换行/控制字符，传空串 = 清除昵称
@@ -579,7 +586,7 @@ daysTotal, daysPassed, daysLeft, dailyAvg, dailyLeft, forecast, forecastOver, up
 node tests/run-all.js
 ```
 
-会依次跑 17 个套件，全部通过时最后输出 `✅ 全部 17 个套件通过`：
+会依次跑 18 个套件，全部通过时最后输出 `✅ 全部 18 个套件通过`：
 
 | 套件 | 守什么 |
 |------|--------|
@@ -705,7 +712,7 @@ node tests/run-all.js
 
 ### 改动生效清单（改了统计/解析逻辑后照做）
 
-1. 先跑 `node tests/run-all.js`，17 个套件全绿再继续
+1. 先跑 `node tests/run-all.js`，18 个套件全绿再继续
 2. 重新部署 `parseCSV`、`getStatistics`、`user` —— 只部署一部分会出现「改了一半」的假象
 3. 首页 / 账单 / 统计三个页面分别下拉刷新一次
 

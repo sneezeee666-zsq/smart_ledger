@@ -24,6 +24,7 @@ const SUITES = [
   ['导入去重（只传判重键/大批量不截断/跨用户隔离/分批偏移）', 'import-dedup-test.js'],
   ['分享转发（隐私页不带数据/统计页带数字/每页都能转发）', 'share-test.js'],
   ['快捷记账面板（金额清洗/点预填 vs 长按直存/提交形态）', 'quick-add-test.js'],
+  ['常记的配置（纯函数/云端保存/推荐优先级/清空语义）', 'quick-picks-test.js'],
   ['主题系统（回落/tabBar 图标/持久化）', 'theme-test.js'],
   ['用户档案（自动建档/昵称规则/越权/主题偏好）', 'user-test.js'],
   ['VIP 会员（激活幂等/防白嫖/档案不丢字段）', 'vip-test.js']

@@ -7,6 +7,7 @@
     "pages/import/import",
     "pages/add-bill/add-bill",
     "pages/budget/budget",
+    "pages/quick-manage/quick-manage",
     "pages/vip/vip",
     "pages/profile/profile"
   ],
