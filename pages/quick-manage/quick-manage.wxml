@@ -64,8 +64,13 @@
       </view>
     </view>
 
-    <!-- 空状态 -->
-    <view class="qm-empty" wx:else>
+    <!-- 空状态
+         ⚠️ 用 loaded 兜住：首帧只有缓存（推荐内容还没拿到），
+            不加这层守卫，推荐模式会先闪一下"还没有够频繁的账单"
+            再冒出列表 —— 看着像数据丢了又回来。
+         ⚠️ 写成独立的 wx:if 而不是 wx:elif：它和上面的 qm-list 之间隔着注释，
+            elif 依赖"紧邻的上一个兄弟节点"，靠不住。 -->
+    <view class="qm-empty" wx:if="{{loaded && list.length === 0}}">
       <block wx:if="{{mode === 'auto'}}">
         <text class="qm-empty-title">还没有够频繁的账单</text>
         <text class="qm-empty-desc">记满 2 次的消费才会被推荐；也可以切到「手动配置」自己定</text>
@@ -77,7 +82,7 @@
     </view>
 
     <!-- ==================== 从账单推荐（仅手动模式当候选） ==================== -->
-    <block wx:if="{{mode === 'manual' && recs.length > 0}}">
+    <block wx:if="{{loaded && mode === 'manual' && recs.length > 0}}">
       <text class="qm-section">根据你的账单推荐，点一下加入</text>
       <view class="qm-recs">
         <view

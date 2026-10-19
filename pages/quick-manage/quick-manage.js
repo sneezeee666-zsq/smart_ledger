@@ -58,7 +58,34 @@ Page({
     this._rpx = w / 750
     this._step = 108 * this._rpx
 
+    // ⚠️ 先用本机缓存把「模式 + 列表」同步画出来，再去云端拉推荐。
+    //    顺序反了就会看到"先跳到推荐、再跳到手动"：首帧用的是 data 里的默认
+    //    mode='auto'，而真正的高亮要等 getStatistics 回来才 setData。
+    //    mode / quickPicks 都在本机缓存里，没有理由等网络。
+    this.hydrate()
+
     this.loadAll()
+  },
+
+  /**
+   * 首帧：只用本机缓存渲染，**不发任何请求**（同步）。
+   *
+   * 缓存里有 mode 和手动列表，所以手动模式能一次性画对（列表也全在）；
+   * 推荐内容不在缓存里（它要按账单实时聚合），等 loadAll 回来再补 ——
+   * 那一段由 WXML 的 `loaded` 兜住，首帧不会先闪一个"还没有够频繁的账单"。
+   */
+  hydrate() {
+    const mode = user.quickPicksMode()
+    const myList = qp.normalizeList(user.quickPicks() || [])
+    // 推荐还没拿到，先空着；手动模式直接用手缓存的列表
+    const shown = mode === 'manual' ? myList : []
+
+    this.setData({
+      mode,
+      myList: withKey(myList),
+      list: withKey(shown),
+      offsets: shown.map(() => 0)
+    })
   },
 
   onShow() {

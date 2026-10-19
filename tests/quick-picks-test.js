@@ -399,10 +399,11 @@ const pick = (title, amount, type) => ({ title, amount, type: type || 'expense' 
     require(path.join(__dirname, '..', 'pages/quick-manage/quick-manage.js'))
     global.Page = undefined
 
-    const page = Object.assign({}, cfg, {
+    const makePage = () => Object.assign({}, cfg, {
       data: JSON.parse(JSON.stringify(cfg.data)),
       setData(patch) { Object.assign(this.data, patch) }
     })
+    const page = makePage()
     const flush = () => new Promise(r => setTimeout(r, 0))
     const tapMode = m => page.onMode({ currentTarget: { dataset: { mode: m } } })
     const titles = () => page.data.list.map(x => x.title)
@@ -455,6 +456,27 @@ const pick = (title, amount, type) => ({ title, amount, type: type || 'expense' 
     t(toasts.length === 1, `保存失败要提示用户（实际 ${toasts.length} 次）`)
     t(page.data.myList.length === goodLen, '失败后界面回到云端的真实状态（删掉的那条又回来了）')
     t(page.data.saving === false, '失败后 saving 不会卡在 true')
+
+    // ⑦ 首帧不能"先跳到推荐、再跳到手动"
+    //    根因：data.mode 默认 'auto'，真正的高亮要等 getStatistics 回来才 setData。
+    //    现在 onLoad 里先 hydrate（读本机缓存），云端只补推荐内容。
+    const p2 = makePage()
+    p2.onLoad()                       // 同步调用，不等云端
+    t(p2.data.mode === 'manual',
+      `首帧就应该是缓存的 manual（实际 ${p2.data.mode}）—— 否则进页面会先闪一下推荐`)
+    t(p2.data.list.length === goodLen, '首帧列表直接用本机缓存的手动项，不用等网络')
+    t(p2.data.loaded === false, '首帧 loaded 仍是 false：推荐没到，空状态不该先冒出来')
+    await flush(); await flush()
+    t(p2.data.mode === 'manual' && p2.data.loaded === true, '云端回来后仍是 manual，没有被推荐刷掉')
+
+    // 反过来也要对：首帧在推荐模式时，不能拿缓存的手动列表顶上
+    tapMode('auto'); await flush()
+    const p3 = makePage()
+    p3.onLoad()
+    t(p3.data.mode === 'auto', '缓存已是推荐模式时，首帧就是推荐')
+    t(p3.data.list.length === 0, '推荐模式首帧不拿手动列表冒充（等云端推荐回来再填）')
+    await flush(); await flush()
+    t(p3.data.list.length > 0 && p3.data.list[0].title === '地铁', '云端回来后填的是推荐内容')
 
     delete global.wx
   }
