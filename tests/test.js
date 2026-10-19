@@ -324,6 +324,68 @@ const round2 = v => Math.round(v * 100) / 100
   const emptyBills = await fn.main({ action: 'bills', period: 'month' })
   assert(emptyBills.data.total === 0 && emptyBills.data.hasMore === false, '无数据时账单页 total=0 / hasMore=false')
 
+  // ==================== 快捷记账：高频组合 ====================
+  // 首页半屏面板的 chips 由这里聚合而来。守三件事：
+  //   ① 只挑「出现≥2次」的（只出现一次的不是"常记的"）
+  //   ② 金额取**最近一次**而不是平均（咖啡涨价后就该记涨后的价）
+  //   ③ 跨用户隔离（别人的高频不能出现在我的面板里）
+  console.log('\n=== 快捷记账：高频组合（quickPicks）===')
+  {
+    DOCS.length = 0
+    const q = (title, amount, type, dayOffset, product) => {
+      seq++
+      DOCS.push({
+        _id: 'q' + seq, _openid: 'me',
+        createTime: todayStart - dayOffset * DAY,
+        amount, type, title, product: product || '', categoryId: 'food'
+      })
+    }
+
+    // 瑞幸 4 次，金额从 12 涨到 15（最近一次 15）
+    q('瑞幸咖啡', 12, 'expense', 30)
+    q('瑞幸咖啡', 13, 'expense', 20)
+    q('瑞幸咖啡', 15, 'expense', 5)
+    q('瑞幸咖啡', 15, 'expense', 1)
+    // 地铁 3 次
+    q('地铁', 3, 'expense', 10)
+    q('地铁', 3, 'expense', 8)
+    q('地铁', 3, 'expense', 2)
+    // 只出现 1 次 → 不该进 chips
+    q('一次性消费', 999, 'expense', 3)
+    // 收入单独成组
+    q('工资', 10000, 'income', 25)
+    q('工资', 10000, 'income', 5)
+    // 没有对方名 → 无法归组，不该进 chips
+    q('', 50, 'expense', 2)
+
+    const r = await fn.main({ action: 'quickPicks' })
+    const picks = (r.data && r.data.picks) || []
+    const titles = picks.map(p => p.title)
+
+    assert(r.code === 0, 'quickPicks 返回成功')
+    assert(titles.length === 3, `只保留出现 ≥2 次的（实际 ${titles.length} 个：${titles.join('/')}）`)
+    assert(picks[0] && picks[0].title === '瑞幸咖啡' && picks[0].count === 4,
+      `次数最多的排第一（${picks[0] && picks[0].title} × ${picks[0] && picks[0].count}）`)
+    assert(picks[0] && picks[0].amount === 15, `金额取最近一次而非平均（实际 ${picks[0] && picks[0].amount}）`)
+    assert(titles.indexOf('一次性消费') === -1, '只出现一次的不进 chips')
+    assert(titles.indexOf('') === -1, '没有对方名的不进 chips（无法归组）')
+    assert(picks.some(p => p.title === '工资' && p.type === 'income'), '收入单独成组（不与支出同名合并）')
+    assert(picks.length <= 6, '最多 6 个')
+
+    // 跨用户隔离
+    DOCS.push({ _id: 'qx1', _openid: 'other', createTime: todayStart, amount: 9, type: 'expense', title: '别人的高频', product: '' })
+    DOCS.push({ _id: 'qx2', _openid: 'other', createTime: todayStart, amount: 9, type: 'expense', title: '别人的高频', product: '' })
+    const r2 = await fn.main({ action: 'quickPicks' })
+    assert(((r2.data && r2.data.picks) || []).map(p => p.title).indexOf('别人的高频') === -1,
+      '别人的账单不参与我的高频组合')
+
+    // 空账本
+    DOCS.length = 0
+    const r3 = await fn.main({ action: 'quickPicks' })
+    assert(r3.code === 0 && ((r3.data && r3.data.picks) || []).length === 0,
+      '没有账单时返回空数组（不报错、不给假数据）')
+  }
+
   console.log(failed === 0 ? '\n全部通过 ✅' : `\n有 ${failed} 项失败 ❌`)
   process.exit(failed === 0 ? 0 : 1)
 })().catch(e => { console.error(e); process.exit(1) })

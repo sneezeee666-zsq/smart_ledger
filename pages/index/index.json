@@ -8,6 +8,7 @@
   "backgroundTextStyle": "light",
   "enablePullDownRefresh": true,
   "usingComponents": {
-    "bill-card": "/components/bill-card/bill-card"
+    "bill-card": "/components/bill-card/bill-card",
+    "quick-add": "/components/quick-add/quick-add"
   }
 }

@@ -1,0 +1,253 @@
+/* ==========================================================================
+   半屏快捷记账面板
+   ========================================================================== */
+
+.qa-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 26, 46, 0.42);
+  z-index: 900;
+  opacity: 0;
+  /* 用 visibility 而不是 pointer-events：小程序对 pointer-events 支持不稳，
+     visibility:hidden 一定不接收点击，且能参与 transition */
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.qa-mask.is-on {
+  opacity: 1;
+  visibility: visible;
+}
+
+.qa-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 901;
+  background: var(--surface, #ffffff);
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 12rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -10rpx 40rpx rgba(16, 26, 46, 0.12);
+  /* 收起：整体滑到屏幕外（百分比是相对自身高度） */
+  transform: translateY(100%);
+  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 展开：归位后再减去键盘高度（--kb 由 JS 通过内联 style 传入） */
+.qa-panel.is-on {
+  transform: translateY(calc(0px - var(--kb, 0px)));
+}
+
+.qa-grip {
+  width: 72rpx;
+  height: 8rpx;
+  border-radius: 4rpx;
+  background: var(--line-strong, #DDE4EF);
+  margin: 0 auto 12rpx;
+}
+
+.qa-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6rpx 0 14rpx;
+}
+
+.qa-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.qa-close {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  font-size: 28rpx;
+}
+
+.qa-close-hover {
+  background: var(--surface-3);
+}
+
+/* ---------- 收支 ---------- */
+
+.qa-seg {
+  display: flex;
+  gap: 12rpx;
+  background: var(--surface-3, #F2F5FA);
+  border-radius: 999rpx;
+  padding: 6rpx;
+  margin-bottom: 8rpx;
+}
+
+.qa-seg-item {
+  flex: 1;
+  text-align: center;
+  height: 60rpx;
+  line-height: 60rpx;
+  border-radius: 999rpx;
+  font-size: 27rpx;
+  color: var(--ink-2);
+  transition: all 0.18s ease;
+}
+
+.qa-seg-item.active {
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.qa-seg-item.active.is-expense {
+  color: var(--expense);
+}
+
+.qa-seg-item.active.is-income {
+  color: var(--income);
+}
+
+/* ---------- 金额 ---------- */
+
+.qa-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 0 8rpx;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.qa-cur {
+  font-size: 40rpx;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.qa-amount {
+  flex: 1;
+  min-width: 0;
+  font-size: 68rpx;
+  font-weight: 600;
+  color: var(--ink-1);
+  height: 96rpx;
+  line-height: 96rpx;
+}
+
+.qa-ph {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+
+.qa-clear {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ---------- 高频组合 ---------- */
+
+.qa-section {
+  display: block;
+  margin: 22rpx 0 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.qa-picks {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.qa-picks-inner {
+  display: inline-flex;
+  gap: 14rpx;
+  padding-bottom: 4rpx;
+}
+
+.qa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  max-width: 320rpx;
+  padding: 0 22rpx;
+  height: 64rpx;
+  border-radius: 999rpx;
+  background: var(--brand-soft, #E8F8EF);
+  border: 1rpx solid var(--brand-line, #C8EBD8);
+}
+
+.qa-chip-hover {
+  opacity: 0.82;
+}
+
+.qa-chip-title {
+  font-size: 25rpx;
+  color: var(--ink-1);
+  max-width: 190rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qa-chip-amount {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--brand, #07C160);
+}
+
+/* ---------- 对方 ---------- */
+
+.qa-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 20rpx;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.qa-label {
+  font-size: 26rpx;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.qa-title-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 28rpx;
+  color: var(--ink-1);
+  height: 56rpx;
+  line-height: 56rpx;
+}
+
+/* ---------- 底部 ---------- */
+
+.qa-foot {
+  margin-top: 22rpx;
+}
+
+.qa-more {
+  display: block;
+  text-align: center;
+  font-size: 23rpx;
+  color: var(--ink-3);
+  padding: 8rpx 0 16rpx;
+}
+
+.qa-save {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: 30rpx;
+}

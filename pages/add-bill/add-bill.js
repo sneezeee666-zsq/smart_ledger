@@ -126,6 +126,33 @@ Page({
     // 带 id 进来 = 改一笔已有的记录
     const id = (options && options.id) ? String(options.id).trim() : ''
     if (id) this.enterEditMode(id)
+    else this.applyPrefill(options || {})
+  },
+
+  /**
+   * 从首页半屏面板「更多选项」跳过来时，把已填的内容带进来（不用重输）。
+   *
+   * ⚠️ 只认三个参数，且必须校验：
+   *    amount 走与输入框相同的「最多两位小数」清洗（否则脏值会一路传到云端报错）；
+   *    type 只认 income，其余一律按支出。
+   *    title 截到 60 字（与云端 maxTitleLen 一致，超了云端也会拒）。
+   */
+  applyPrefill(options) {
+    const patch = {}
+    const amount = String(options.amount || '').replace(/[^\d.]/g, '')
+    if (amount) {
+      const dot = amount.indexOf('.')
+      patch.amount = dot === -1 ? amount : amount.slice(0, dot + 1) + amount.slice(dot + 1).replace(/\./g, '').slice(0, 2)
+    }
+    if (options.title) patch.title = String(decodeURIComponent(options.title)).slice(0, 60)
+    if (String(options.type || '') === 'income') patch.type = 'income'
+
+    if (!Object.keys(patch).length) return
+    this.setData(patch)
+    // 有预填内容说明用户已经开始填了，返回时该提醒「还没保存」
+    this._dirty = true
+    // 填了对方就顺手识别一下分类
+    if (patch.title) this.refreshCategory()
   },
 
   onShow() {

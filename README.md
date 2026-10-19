@@ -45,6 +45,10 @@
   - 完整链路已写好并留在代码里：会员中心页（金色会员卡 + **功能对比表**（免费功能也列出 —— 只列付费功能会让人以为记账也要钱）+ 价格卡 + 开通按钮）、激活/幂等/防白嫖逻辑（测试钉住）
   - 恢复方式（三处一起翻）：`getStatistics/index.js` 的 `INSIGHT_REQUIRE_VIP` 改回 `true` + `pages/ai/ai.js` 的 `locked` 改回 `!user.isVip()` + 在「我的」页加回「会员中心」入口
   - 真实支付接入路径见 README「微信支付怎么接」（`createVipOrder` 调 `cloud.cloudPay.unifiedOrder` + 新增 `payCallback` 回调云函数）
+- ⚡ **首页半屏快捷记账**：点「记一笔」不再跳整页，半屏面板记完即关、停留首页（下一步就能看到刚记的那笔）。面板只放**金额 + 对方（可选）**，交易类型/支付方式/状态/时间全走云端默认值，想改就点「更多选项」进完整页（已填内容会带过去）
+  - **常记的一键复用**：chips 由云端 `quickPicks` 按近 90 天聚合（只留出现 ≥2 次的，金额取最近一次），**点一下预填、长按直接存** —— 每天同一杯咖啡只需长按一次
+  - 键盘适配：面板是 fixed 定位，系统键盘不会自动避让，靠 `bindfocus` 的键盘高度 + CSS 变量 `--kb` 自己顶上去（input 关掉 `adjust-position`，否则系统推页面会和我们顶面板叠加成"面板飞出屏幕"）
+  - 金额输入在前端就清洗成「最多两位小数」，脏值不会一路传到云函数才报错
 - 🆕 **AI 分析优化**：范围可选**近 7 天 / 近 30 天**两档；点击后模拟「深度思考」节奏（界面停留 3~10 秒并显示「深度思考中…请稍后…」，不向用户透露这是模拟）；规则从 7 条扩到 **10 条**（新增月光预警 / 深夜消费 / 单笔大额，「支出涨跌」改为「日均涨跌」）
 - 🔗 **全页面可转发**：微信规定**只有定义了 `onShareAppMessage` 的页面，右上角菜单才会出现"转发"按钮**（漏定义的表现就是"当前页面无法转发"，且不报任何错）。9 个页面全部配上，文案集中在 `utils/share.js`：
   - **隐私页**（账单 / 我的 / 表单页）用**通用分享** + 固定封面图 —— 默认分享是当前页面截图，会把交易明细一起截走，所以这些页面必须指定不含任何用户数据的封面
@@ -369,7 +373,8 @@ smart-ledger/
 │   └── profile/              # 个人中心：数据管理 + 设置（我的昵称 / 主题颜色）+ 说明 + 关于（作者/邮箱/GitHub）
 │
 ├── components/
-│   └── bill-card/            # 账单卡片组件（展示 + 左滑删除，styleIsolation: apply-shared）
+│   ├── bill-card/            # 账单卡片组件（展示 + 左滑删除，styleIsolation: apply-shared）
+│   └── quick-add/            # 半屏快捷记账面板（金额 + 常记的 chips，记完即关不跳页）
 │
 ├── cloudfunctions/           # 云函数目录
 │   ├── parseCSV/             # 解析 + 去重 + 删除 + 清空 + 手动记账 + 编辑 + 读单条
@@ -401,7 +406,7 @@ smart-ledger/
 │   └── gen-icons.py          # 图标生成（从 utils/theme.js 读主题色，产出各主题 tabBar 图标）
 │
 ├── tests/                    # 离线自测（不需要开发者工具、不联网）
-│   ├── run-all.js            # 一键跑完下面 16 个套件
+│   ├── run-all.js            # 一键跑完下面 17 个套件
 │   ├── static-check.js       # 静态检查 21 组：语法/引用/绑定/主题一致性/资源冗余/变量可达性/按钮居中…
 │   ├── test.js               # getStatistics 各 action 的聚合断言（含日均分母）
 │   ├── time-test.js          # toTimestamp 解析（Excel 序列号 / 非法输入）
@@ -415,6 +420,7 @@ smart-ledger/
 │   ├── ai-page-test.js       # AI 分析页：范围切换同步说明小字（回归）/ 深度思考 / 失败态
 │   ├── import-dedup-test.js  # 导入去重：只传判重键 / 大批量不截断 / 跨用户隔离 / 分批下标偏移
 │   ├── share-test.js         # 分享转发：隐私页不带用户数据 / 统计页带数字 / 每页都能转发
+│   ├── quick-add-test.js     # 快捷记账面板：金额清洗 / 点预填 vs 长按直存 / 提交形态
 │   ├── theme-test.js         # 主题：非法值回落 / 图标路径存在性 / 持久化 / 不重复 setData / 导航栏与下拉底色
 │   ├── user-test.js          # 用户档案：自动建档 / 昵称规则 / 越权 / 主题偏好回落 / 问候语
 │   └── vip-test.js           # VIP：激活幂等 / **非沙箱模式拒绝客户端直调（防白嫖）** / 档案合并不丢 vip 字段 / 脏 vip 归一化
@@ -493,6 +499,7 @@ smart-ledger/
 | `bills` | `{ period, type, categoryId, page, pageSize }` | `{ bills, total, totalIncome, totalExpense, hasMore }`；⚠️ `totalIncome`/`totalExpense` **只有 `page === 0` 有值，后页是 `null`**（前端据此保留第 0 页的汇总，不覆盖成 0）；`total` 与 `hasMore` 每页都有 |
 | `profile` | — | `{ totalBills, totalDays, firstTime, lastTime }` |
 | `budget` | — | `{ budget }` —— 预算进度块；**没设过预算是 `null`**（不是 `amount:0` 的对象） |
+| `quickPicks` | 无 | `{ picks: [{ title, type, amount, product, categoryId, count }] }` —— 首页快捷记账面板的「常记的」：按「对方 + 收/支」聚合近 90 天，只留出现 ≥2 次的，金额取**最近一次**（咖啡涨价就记涨后的价），最多 6 个 |
 | `insight` | `days`（可选 `7`/`30`，默认 30） | `{ scope, insights[], summary, meta }` —— 近 N 天规则引擎结论。⚠️ 会员门控由 `INSIGHT_REQUIRE_VIP` 开关控制，**当前为 false（对所有人开放）**；改成 `true` 后非会员返回 `code:-2 + data.needVip` |`insights` 每条含 `id/level/title/detail/evidence[]`，**没有可说的结论时是空数组**（不返回套话）；`summary` 是算出这些结论的完整摘要，界面上不渲染、但测试与将来的 prompt 都用它 |
 
 `period` 取值：`day` | `week` | `month` | `year` | `all`（周一为一周之首；月末/年末截止到「今天」）
@@ -572,7 +579,7 @@ daysTotal, daysPassed, daysLeft, dailyAvg, dailyLeft, forecast, forecastOver, up
 node tests/run-all.js
 ```
 
-会依次跑 16 个套件，全部通过时最后输出 `✅ 全部 16 个套件通过`：
+会依次跑 17 个套件，全部通过时最后输出 `✅ 全部 17 个套件通过`：
 
 | 套件 | 守什么 |
 |------|--------|
@@ -698,7 +705,7 @@ node tests/run-all.js
 
 ### 改动生效清单（改了统计/解析逻辑后照做）
 
-1. 先跑 `node tests/run-all.js`，16 个套件全绿再继续
+1. 先跑 `node tests/run-all.js`，17 个套件全绿再继续
 2. 重新部署 `parseCSV`、`getStatistics`、`user` —— 只部署一部分会出现「改了一半」的假象
 3. 首页 / 账单 / 统计三个页面分别下拉刷新一次
 

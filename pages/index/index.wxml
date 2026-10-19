@@ -185,6 +185,13 @@
     </view>
   </view>
 
+  <!-- 半屏快捷记账面板（记完即关，不离开首页） -->
+  <quick-add
+    visible="{{quickAddVisible}}"
+    bind:close="closeQuickAdd"
+    bind:done="onQuickAddDone"
+  />
+
   <!-- 删除账单一律从「账单」页进入：列表左滑、或点开单笔详情后的红色按钮。
        首页不再放删除入口 —— 首页是"看数"的地方，放破坏性动作容易被误触。 -->
 

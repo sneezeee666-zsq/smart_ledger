@@ -1,0 +1,105 @@
+<wxs src="../../utils/format.wxs" module="fmt" />
+
+<!-- 半屏快捷记账面板
+     ⚠️ 为什么用半屏而不是跳整页：手动记账是"补记零星几笔"，
+        跳页会打断首页的浏览上下文（记完还要返回来）。
+        半屏记完即关，停留首页，下一步能看到刚记的那笔。
+
+     ⚠️ 为什么用 class 控制显隐而不是 wx:if：
+        wx:if 的节点是首次渲染，**不会触发 transition**，滑动动画会没有；
+        常驻 DOM + translateY 才有真正的上滑过渡。
+     ⚠️ 键盘适配：面板是 fixed 定位，系统键盘不会自动避让，
+        必须接 bindfocus 的 e.detail.height，用 CSS 变量 --kb 把它顶上去。
+        input 要设 adjust-position="{{false}}"，否则系统推页面 + 我们顶面板
+        会叠加成"面板飞出屏幕"。 -->
+<view class="qa-mask {{visible ? 'is-on' : ''}}" bindtap="onClose" catchtouchmove="noop"></view>
+
+<view class="qa-panel {{visible ? 'is-on' : ''}}" style="--kb: {{kbHeight}}px;">
+  <view class="qa-grip"></view>
+
+  <view class="qa-head">
+    <text class="qa-title">记一笔</text>
+    <view class="qa-close" bindtap="onClose" hover-class="qa-close-hover" hover-stay-time="60">✕</view>
+  </view>
+
+  <!-- 收支 -->
+  <view class="qa-seg">
+    <view
+      class="qa-seg-item {{type === 'expense' ? 'active is-expense' : ''}}"
+      data-type="expense"
+      bindtap="onTypeChange"
+    >支出</view>
+    <view
+      class="qa-seg-item {{type === 'income' ? 'active is-income' : ''}}"
+      data-type="income"
+      bindtap="onTypeChange"
+    >收入</view>
+  </view>
+
+  <!-- 金额：打开面板就聚焦，键盘直接弹出来 -->
+  <view class="qa-amount-row">
+    <text class="qa-cur">¥</text>
+    <input
+      class="qa-amount num"
+      type="digit"
+      value="{{amount}}"
+      placeholder="0.00"
+      placeholder-class="qa-ph"
+      focus="{{focusAmount}}"
+      adjust-position="{{false}}"
+      cursor-spacing="0"
+      bindinput="onAmountInput"
+      bindfocus="onKeyboardShow"
+      bindblur="onKeyboardHide"
+      bindconfirm="onSave"
+      confirm-type="done"
+    />
+    <view class="qa-clear" wx:if="{{amount}}" bindtap="clearAmount">✕</view>
+  </view>
+
+  <!-- 高频组合：点一下预填，长按可以直接存 -->
+  <block wx:if="{{picks.length > 0}}">
+    <text class="qa-section">常记的（点一下预填，长按直接记账）</text>
+    <scroll-view scroll-x class="qa-picks" enhanced show-scrollbar="{{false}}">
+      <view class="qa-picks-inner">
+        <view
+          class="qa-chip"
+          wx:for="{{picks}}"
+          wx:key="title"
+          data-index="{{index}}"
+          bindtap="onPick"
+          bindlongpress="onPickSave"
+          hover-class="qa-chip-hover"
+          hover-stay-time="60"
+        >
+          <text class="qa-chip-title text-ellipsis">{{item.title}}</text>
+          <text class="qa-chip-amount num">¥{{fmt.amount(item.amount)}}</text>
+        </view>
+      </view>
+    </scroll-view>
+  </block>
+
+  <!-- 对方（可选）：填了就能自动识别分类 -->
+  <view class="qa-title-row">
+    <text class="qa-label">对方</text>
+    <input
+      class="qa-title-input"
+      value="{{title}}"
+      placeholder="可不填，填了自动识别分类"
+      placeholder-class="qa-ph"
+      adjust-position="{{false}}"
+      bindinput="onTitleInput"
+      bindfocus="onKeyboardShow"
+      bindblur="onKeyboardHide"
+    />
+  </view>
+
+  <view class="qa-foot">
+    <text class="qa-more" bindtap="goFullPage">更多选项（时间 / 支付方式）›</text>
+    <button
+      class="btn-primary qa-save {{submitting ? 'is-saving' : ''}}"
+      bindtap="onSave"
+      disabled="{{submitting}}"
+    >{{submitting ? '保存中…' : '保存'}}</button>
+  </view>
+</view>

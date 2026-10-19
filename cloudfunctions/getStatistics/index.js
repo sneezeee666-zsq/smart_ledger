@@ -101,6 +101,9 @@ exports.main = async (event) => {
       }
       return await buildInsightData(openid, event.days)
     }
+    if (action === 'quickPicks') {
+      return await buildQuickPicks(openid)
+    }
     return await buildIndexData(openid)
   } catch (err) {
     console.error('getStatistics error:', err)
@@ -527,6 +530,65 @@ async function buildBudgetData(openid) {
 // 分析窗口支持 7 天 / 30 天两档，默认 30 天：够看出习惯，又不会跨月导致「上期」被截断
 const INSIGHT_DAYS = 30
 const INSIGHT_SCOPES = [7, 30]
+
+// ==================== 首页快捷记账：高频组合 ====================
+
+// 扫最近 90 天：够覆盖"常买的东西"，又不会把一年前的旧习惯翻出来
+const QUICK_PICK_DAYS = 90
+// 面板里最多放 6 个 chip：再多就变成"另一个列表"，反而慢
+const QUICK_PICK_LIMIT = 6
+
+/**
+ * 挑出「常记的那几笔」，供首页快捷记账面板一键复用。
+ *
+ * 聚合口径：按「交易对方 + 收/支」分组，只保留出现 ≥2 次的；
+ * 每组的金额/商品/分类取**最近一次**的值 —— 点 chip 就是"照上次那样再记一笔"，
+ * 金额取最近一次比取平均值更符合直觉（咖啡涨价了，就该记涨后的价）。
+ *
+ * ⚠️ 必须在云端算：客户端 db.collection().get() 单次最多 20 条，
+ *    根本统计不出"高频"。
+ * ⚠️ 不返回任何敏感字段（只有对方/金额/分类），面板是要展示给用户点选的。
+ *
+ * @returns {Object} { code, data: { picks: [{ title, type, amount, product, categoryId, count }] } }
+ */
+async function buildQuickPicks(openid) {
+  const nowTs = Date.now()
+  const from = startOfDay(nowTs) - (QUICK_PICK_DAYS - 1) * DAY_MS
+
+  const records = await fetchAll(
+    { _openid: openid, createTime: _.gte(from).and(_.lte(endOfDay(nowTs))) },
+    { amount: true, type: true, createTime: true, title: true, product: true, categoryId: true }
+  )
+
+  const groups = {}
+  for (const r of records) {
+    const title = String(r.title || '').trim()
+    if (!title) continue          // 没有对方名的（部分手动记账没填）无法归组
+    const key = (r.type === 'income' ? 'income' : 'expense') + '|' + title
+    if (!groups[key]) {
+      groups[key] = { title, type: r.type === 'income' ? 'income' : 'expense', count: 0, last: r }
+    }
+    groups[key].count++
+    // fetchAll 按 createTime 升序（旧→新），越靠后越新
+    if ((r.createTime || 0) >= (groups[key].last.createTime || 0)) groups[key].last = r
+  }
+
+  const picks = Object.keys(groups)
+    .map(k => groups[k])
+    .filter(g => g.count >= 2)                    // 只出现一次的不算"高频"
+    .sort((a, b) => (b.count - a.count) || ((b.last.createTime || 0) - (a.last.createTime || 0)))
+    .slice(0, QUICK_PICK_LIMIT)
+    .map(g => ({
+      title: g.title,
+      type: g.type,
+      amount: Number(g.last.amount) || 0,
+      product: g.last.product || '',
+      categoryId: g.last.categoryId || '',
+      count: g.count
+    }))
+
+  return { code: 0, data: { picks }, scanned: records.length }
+}
 
 async function buildInsightData(openid, requestedDays) {
   const days = INSIGHT_SCOPES.indexOf(Number(requestedDays)) !== -1 ? Number(requestedDays) : INSIGHT_DAYS

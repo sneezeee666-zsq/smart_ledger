@@ -43,6 +43,9 @@ Page({
 
     recentBills: [],
 
+    // 半屏快捷记账面板是否展开（点「记一笔」弹它，不跳整页）
+    quickAddVisible: false,
+
     // 本月预算进度（getStatistics 算好的整块，页面一个算式都不写）。
     // null = 还没设过预算 → 进度条整块不渲染，不摆一条 0/0 的假进度
     budget: null,
@@ -240,8 +243,21 @@ Page({
     wx.navigateTo({ url: '/pages/import/import' })
   },
 
+  // 记一笔：改为弹半屏面板，不再跳整页 —— "补记零星一笔"不该打断首页上下文。
+  // 想在面板里填支付方式/时间时，面板底部有「更多选项」进完整页。
   goToAddBill() {
-    wx.navigateTo({ url: '/pages/add-bill/add-bill' })
+    this.setData({ quickAddVisible: true })
+  },
+
+  closeQuickAdd() {
+    this.setData({ quickAddVisible: false })
+  },
+
+  // 快捷记账成功：面板自己会关，这里只负责把首页的数字刷新掉
+  onQuickAddDone() {
+    this.setData({ quickAddVisible: false })
+    this.loadIndexData()
+    this.loadRecentBills()
   },
 
   goToStats() {
