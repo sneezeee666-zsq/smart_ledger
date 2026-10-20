@@ -1,6 +1,6 @@
 <view class="container theme-{{theme}}">
 
-  <!-- ==================== 小结卡 ====================
+  <!-- ==================== 分析卡 ====================
        与「我的」的品牌卡同一套令牌（--hero-top/-grad/-glow）：
        两块深色卡片在任何主题下都同色。 -->
   <view class="hero">
@@ -11,7 +11,7 @@
         <image class="mark-img" src="/assets/icons/ai-mark.png" mode="aspectFit" />
       </view>
       <view class="hero-text">
-        <text class="hero-name">消费小结</text>
+        <text class="hero-name">消费分析</text>
         <text class="hero-desc">把最近一段时间的收支汇总成几条要点</text>
       </view>
     </view>
@@ -22,7 +22,7 @@
       hover-stay-time="60"
       bindtap="onAnalyze"
       disabled="{{analyzing}}"
-    >{{analyzing ? '正在汇总…' : '生成小结'}}</button>
+    >{{analyzing ? '正在汇总…' : '开始分析'}}</button>
 
     <text class="hero-note">统计范围：{{scopeText}}</text>
 
@@ -38,18 +38,18 @@
     </view>
   </view>
 
-  <!-- ==================== 小结结果 ==================== -->
+  <!-- ==================== 分析结果 ==================== -->
   <view class="card sec result-card">
 
     <view class="card-head">
-      <text class="card-title">小结</text>
+      <text class="card-title">分析结果</text>
       <text class="more-link" wx:if="{{analyzed && !analyzing && !loadFailed}}" bindtap="onAnalyze">重新汇总</text>
     </view>
 
     <!-- 还没点过：说明按钮能干什么 -->
     <view class="empty-state" wx:if="{{!analyzed}}">
       <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
-      <text class="empty-text">还没有小结</text>
+      <text class="empty-text">还没有分析数据</text>
       <text class="empty-text">点上面的按钮，汇总最近 {{scopeDays}} 天的收支</text>
     </view>
 
@@ -66,7 +66,7 @@
     <!-- 失败要与「没有结论」分开：一次网络抖动不该被当成"没有数据" -->
     <view class="empty-state" wx:if="{{loadFailed}}">
       <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
-      <text class="empty-text">生成失败</text>
+      <text class="empty-text">分析失败</text>
       <text class="empty-text">账单没动过，可能是网络问题</text>
       <view class="empty-action">
         <button class="btn-primary btn-sm" bindtap="onAnalyze">重试</button>
@@ -119,7 +119,7 @@
   </view>
 
   <view class="footnote">
-    <text>小结只读取你自己的账单（按 openid 隔离），不会与任何其他用户混在一起</text>
+    <text>分析只读取你自己的账单（按 openid 隔离），不会与任何其他用户混在一起</text>
   </view>
 
 </view>

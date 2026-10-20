@@ -13,7 +13,7 @@
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#07C160",
-    "navigationBarTitleText": "智能账本",
+    "navigationBarTitleText": "66账本",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#F2F5FA"
   },
@@ -43,7 +43,7 @@
       },
       {
         "pagePath": "pages/ai/ai",
-        "text": "消费小结",
+        "text": "消费分析",
         "iconPath": "assets/icons/ai.png",
         "selectedIconPath": "assets/icons/ai-active-green.png"
       },

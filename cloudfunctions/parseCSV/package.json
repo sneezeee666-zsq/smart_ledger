@@ -1,1 +1,1 @@
-{"name": "parseCSV", "version": "1.0.0", "description": "解析微信账单文件（支持 xlsx/csv）", "main": "index.js", "dependencies": {"wx-server-sdk": "~2.6.3", "xlsx": "^0.18.5"}}
+{"name": "parseCSV", "version": "1.0.3", "description": "解析微信账单文件（支持 xlsx/csv）", "main": "index.js", "dependencies": {"wx-server-sdk": "~2.6.3", "xlsx": "^0.18.5"}}

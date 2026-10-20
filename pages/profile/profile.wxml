@@ -9,7 +9,7 @@
         <image class="mark-img" src="/assets/icons/app-mark.png" mode="aspectFit" />
       </view>
       <view class="hero-text">
-        <text class="hero-name">智能账本</text>
+        <text class="hero-name">66账本</text>
         <text class="hero-desc">数据仅存于你的云环境，按账号隔离</text>
       </view>
       <text class="hero-ver num">{{versionLabel}}</text>
@@ -123,7 +123,7 @@
       <view class="menu-icon ic-slate">
         <image class="menu-img" src="/assets/icons/mi-info.png" mode="aspectFit" />
       </view>
-      <text class="menu-text">关于智能账本</text>
+      <text class="menu-text">关于66账本</text>
       <text class="menu-sub num">{{versionLabel}}</text>
       <text class="menu-arrow">›</text>
     </view>
@@ -216,7 +216,7 @@
   <view class="sheet" wx:if="{{showAboutSheet}}">
     <view class="sheet-grip"></view>
     <view class="sheet-head">
-      <text class="sheet-title">关于智能账本</text>
+      <text class="sheet-title">关于66账本</text>
       <view class="sheet-close" bindtap="closeAboutSheet">✕</view>
     </view>
 
@@ -226,7 +226,7 @@
           <image class="ab-mark-img" src="/assets/icons/app-mark.png" mode="aspectFit" />
         </view>
         <view class="ab-brand-text">
-          <text class="ab-name">智能账本</text>
+          <text class="ab-name">66账本</text>
           <text class="ab-ver num">{{versionLabel}}</text>
         </view>
       </view>

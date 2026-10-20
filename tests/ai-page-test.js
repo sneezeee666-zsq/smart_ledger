@@ -155,7 +155,7 @@ function loadAiPage() {
 
     t(page.data.loadFailed === true, '云函数失败 → loadFailed = true（与"没有结论"分开表达）')
     t(page.data.insights.length === 0, '失败时清空旧结论而不是留着上一份')
-    t(toastTitle === '生成失败，请重试', '失败提示可操作（实际："' + toastTitle + '"）')
+    t(toastTitle === '分析失败，请重试', '失败提示可操作（实际："' + toastTitle + '"）')
   }
 
   console.log('\n' + (fail ? '❌ ' + fail + ' 项未通过' : '✅ 全部通过'))

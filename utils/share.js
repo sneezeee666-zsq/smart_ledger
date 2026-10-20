@@ -20,7 +20,7 @@ const cf = require('./chart-format.js')
 // 固定封面：不带任何用户数据。文件由 tools/gen-icons.py 生成（存在即跳过）
 const SHARE_COVER = '/assets/icons/share-cover.png'
 
-const APP_NAME = '智能账本'
+const APP_NAME = '66账本'
 
 // 统计周期 key → 中文，与 pages/stats 的 periods 对齐
 const PERIOD_LABEL = {
@@ -36,7 +36,7 @@ const PERIOD_LABEL = {
  */
 function appShare(path) {
   return {
-    title: '我在用智能账本记账，数据只存在自己的云环境，推荐给你',
+    title: '我在用66账本记账，数据只存在自己的云环境，推荐给你',
     path: path || '/pages/index/index',
     imageUrl: SHARE_COVER
   }
