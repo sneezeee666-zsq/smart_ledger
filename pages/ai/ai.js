@@ -1,23 +1,19 @@
 /**
- * 智能分析（规则引擎版）
+ * 消费小结（规则引擎版）
  * ===========================================================================
- * ⚠️ 为什么这一版**不接大模型**？
+ * ⚠️ **这一页刻意不做成「AI 分析」**（2026-10 审核整改后定稿）：
  *    微信官方口径：「AI 问答涉及深度合成技术，需补充【深度合成-AI 问答】服务类目；
- *    目前个人主体小程序尚未开放深度合成相关服务类目」。
- *    个人主体做出"用户可以随便问"的 AI 功能，提审时会被要求整改（已有多个先例）。
+ *    个人主体尚未开放该类目」。审核按**界面实际内容**判定，不看代码注释 ——
+ *    只要页面上有「AI / 智能 / 深度思考」这类表征，或长得像「提问 → 出结论」，
+ *    就会被判为深度合成。所以这里：
+ *      · 标题、按钮、空状态一律用「汇总 / 小结」，不出现 AI、智能、分析字样
+ *      · **不做「模拟思考」的等待**（曾经故意停 3~10 秒装成在思考，那是最像 AI 的地方）
+ *      · 结论只陈述算出来的数字，不写「建议 / 要注意 / 该省」这类判断
  *
- *    规则引擎在这个场景更合适，有两点：
- *    ① **每个数字都是算出来的**，不是模型编的 —— 与项目里"派生指标必须可核对"
- *       是同一条铁律。将来接模型时，正确做法也是云端先算好数字、模型只写两句话。
- *    ② **没触发条件就不输出**，不凑套话。
- *
- * 所以这一页刻意**不做自然语言问答**：
- * 「试试这样问」会给人"可以随便问"的错觉，而规则引擎回答不了任何开放式问题。
- * 这里改成如实说明「结论是怎么算出来的」。
- *
- * 判定逻辑全在云端 cloudfunctions/getStatistics/lib/insight.js（纯函数，可离线单测）。
- * 页面**不复刻任何阈值** —— 两处各写一套必然漂移，而漂移出来的差异用户查不出来。
+ *    数字全部由云端 insight.js 的规则算出（纯函数、可离线单测），不接任何模型：
+ *    每个数字都能在 evidence 里逐项核对，与项目「派生指标必须可核对」是同一条铁律。
  */
+
 
 const theme = require('../../utils/theme.js')
 const share = require('../../utils/share.js')
@@ -26,34 +22,36 @@ const user = require('../../utils/user.js')
 // 档位 → 角标文案。
 // ⚠️ 在这里预先算好而不是让 WXML 判断：WXML 表达式不能调用函数，
 //    也没有条件运算符可用（三元会被当成插值的一部分）。
+// ⚠️ 角标只描述数据的性质，不下判断。
+//    曾经是「要注意 / 可以省」—— 那是建议口吻，会被当成分析结论。
 const LEVEL_TEXT = {
-  warn: '要注意',
-  tip: '可以省',
+  warn: '偏高',
+  tip: '明细',
   info: '概况'
 }
 
-// 会分析什么：与云端 insight.js 的规则一一对应。
+// 会汇总什么：与云端 insight.js 的规则一一对应。
 // ⚠️ 这只是**展示**，阈值全在云端。这里抄一份阈值过来就是漂移的起点。
 const DIMENSIONS = [
-  { key: 'budget', title: '预算进度', desc: '按当前花法本月会不会超、还剩多少' },
-  { key: 'moonlight', title: '月光预警', desc: '花得比时间快，几号会花光预算' },
-  { key: 'trend', title: '日均涨跌', desc: '平均每天比上个周期多花还是少花' },
-  { key: 'structure', title: '消费结构', desc: '钱主要压在哪个类目上' },
-  { key: 'night', title: '深夜消费', desc: '半夜的冲动消费占了多大比例' },
-  { key: 'large', title: '大额支出', desc: '单笔明显偏高、集中在哪一类' },
-  { key: 'small', title: '小额高频', desc: '单笔不大但次数多的那部分' },
-  { key: 'merchant', title: '常去的地方', desc: '哪个商户拿走了最多钱' },
-  { key: 'weekend', title: '周末效应', desc: '周末和工作日花得差多少' },
-  { key: 'habit', title: '记账连续性', desc: '有没有连着几天没记、可能漏记' }
+  { key: 'budget', title: '预算进度', desc: '本月预算用了多少、还剩多少' },
+  { key: 'moonlight', title: '预算对比', desc: '本月已花占预算的比例与剩余天数' },
+  { key: 'trend', title: '日均对比', desc: '本期日均支出与上一周期相差多少' },
+  { key: 'structure', title: '类目占比', desc: '各消费类目占总支出的比例' },
+  { key: 'night', title: '夜间消费', desc: '23 点至次日 5 点的支出与占比' },
+  { key: 'large', title: '大额支出', desc: '单笔金额高于参考线的记录' },
+  { key: 'small', title: '小额高频', desc: '单笔金额小但笔数多的那部分' },
+  { key: 'merchant', title: '商户排行', desc: '支出金额最高的交易对方' },
+  { key: 'weekend', title: '周末与工作日', desc: '两段日均支出的差额' },
+  { key: 'habit', title: '记账间隔', desc: '末尾连续未记账的天数' }
 ]
 
-// 分析范围两档：近 7 天 / 近 30 天（与云端 INSIGHT_SCOPES 一致）
+// 统计范围两档：近 7 天 / 近 30 天（与云端 INSIGHT_SCOPES 一致）
 const SCOPES = [
   { days: 7, label: '近 7 天' },
   { days: 30, label: '近 30 天' }
 ]
 
-// 分析范围说明（hero 卡里那行小字）。
+// 统计范围说明（hero 卡里那行小字）。
 // ⚠️ 必须用同一个函数生成：这行字有三处会写它（初始值 / 切换范围时 / 分析完成时），
 //    各拼一遍的后果就是「点了近 7 天、说明还写着最近 30 天」——
 //    用户会以为切换没生效，而界面看着完全正常，极难被发现。
@@ -71,7 +69,7 @@ Page({
     scopeText: scopeLabel(30),
     dimensions: DIMENSIONS,
 
-    // 分析结果
+    // 小结结果
     insights: [],
     meta: null,
     analyzing: false,
@@ -101,11 +99,11 @@ Page({
     theme.attach(this, true)
   },
 
-  /** 切换分析范围（近 7 天 / 近 30 天） */
+  /** 切换统计范围（近 7 天 / 近 30 天） */
   onSwitchScope(e) {
     const days = Number(e.currentTarget.dataset.days)
     if (!days || days === this.data.scopeDays) return
-    // 分析进行中不响应切换（避免结果窗口与所选范围错位）
+    // 汇总进行中不响应切换（避免结果窗口与所选范围错位）
     if (this.data.analyzing) return
     // 切换范围后旧结论作废：不同窗口的结果不能混着看
     this.setData({
@@ -120,7 +118,7 @@ Page({
   },
 
   /**
-   * 一键分析
+   * 生成小结
    *
    * ⚠️ 用**请求序号**而不是 `if (this.data.analyzing) return` 闸门：
    *    后者把后一次请求直接丢掉，快速连点或页面回前台时界面会停在上一次的结果上
@@ -145,28 +143,10 @@ Page({
 
       const result = (res && res.result) || {}
       if (result.code !== 0 || !result.data) {
-        throw new Error(result.message || '分析失败')
+        throw new Error(result.message || '生成失败')
       }
 
       const scopeDaysOut = (result.data.scope && result.data.scope.days) || scopeDays
-
-      // ⚠️ 深度思考模拟：云函数其实是瞬间返回，但为了符合用户对
-      //    "AI 分析"的预期，这里人为停留 3~10 秒，期间展示"深度思考中"。
-      //    具体停留多久由「笔数」略作加权，看起来更自然（不向用户透露这是模拟）。
-      const scanned = (result.data.meta && result.data.meta.scanned) || 0
-      const thinkMs = 3000 + Math.floor(Math.random() * 7000) + Math.min(scanned * 8, 3000)
-
-      await new Promise(resolve => {
-        const t0 = Date.now()
-        const tick = () => {
-          if (seq !== this._seq) return resolve()
-          if (Date.now() - t0 >= thinkMs) return resolve()
-          setTimeout(tick, 100)
-        }
-        tick()
-      })
-
-      if (seq !== this._seq) return
 
       this.setData({
         insights: (result.data.insights || []).map(x => Object.assign({}, x, {
@@ -180,7 +160,7 @@ Page({
       })
     } catch (err) {
       if (seq !== this._seq) return
-      console.error('分析失败:', err)
+      console.error('生成小结失败:', err)
 
       // ⚠️ 清空旧结论而不是留着上一份：
       //    账单已经变了却展示旧分析，比什么都不显示更糟 —— 用户会照着旧结论做决定。
@@ -190,7 +170,7 @@ Page({
         analyzed: true,
         loadFailed: true
       })
-      wx.showToast({ title: '分析失败，请重试', icon: 'none' })
+      wx.showToast({ title: '生成失败，请重试', icon: 'none' })
     }
   }
 })

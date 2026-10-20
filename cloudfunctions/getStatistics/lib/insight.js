@@ -231,7 +231,7 @@ function detectBudget(s) {
   if (b.forecast !== null && b.forecast !== undefined && b.forecast > b.amount) {
     return make(
       'budget', 'tip',
-      '按现在的花法，本月会超 ' + money(b.forecast - b.amount),
+      '按本月日均推算，全月支出约 ' + money(b.forecast),
       '目前日均 ' + money(b.dailyAvg) + '，乘以本月 ' + b.daysTotal + ' 天约 ' + money(b.forecast) + '，'
         + '高于额度 ' + money(b.amount) + '。',
       [
@@ -348,9 +348,8 @@ function detectSmallFreq(s) {
   return make(
     'smallFreq', 'tip',
     sf.count + ' 笔小额支出，加起来 ' + money(sf.amount),
-    '这些单笔都不超过 ' + money(sf.limit) + '，合计却占了支出的 '
-      + Math.round(share * 100) + '%。'
-      + '这一类要靠减少次数来省，不是砍单价。',
+    '这些单笔都不超过 ' + money(sf.limit) + '，合计 ' + money(sf.amount)
+      + '，占这 ' + s.days + ' 天支出的 ' + Math.round(share * 100) + '%。',
     [
       ev('小额笔数', sf.count + ' 笔'),
       ev('合计金额', money(sf.amount)),
@@ -438,10 +437,10 @@ function detectNoSpend(s) {
 }
 
 /**
- * 深夜 / 冲动消费（夜间效应）
+ * 夜间消费（23:00 ~ 05:00）
  * 统计 23:00 ~ 凌晨 05:00 的支出金额与占比。
- * ⚠️ 深夜是情绪化消费的高发期（宵夜、游戏充值、直播打赏），
- *    占比够高才值得提醒 —— 偶尔一次半夜买杯水不该被点名。
+ * ⚠️ 只陈述"这个时段花了多少、占多少"，不作任何消费性质上的判断 ——
+ *    页面是"消费小结"，不是给人下结论的地方。占比够高才单独列一条。
  */
 function detectNight(s) {
   const night = s.night
@@ -453,8 +452,8 @@ function detectNight(s) {
   return make(
     'night', 'tip',
     '有 ' + percent(night.amount, s.total) + '% 的支出发生在深夜',
-    '深夜（23:00 ~ 05:00）往往是情绪化消费的高发期，共 ' + night.count + ' 笔消费，'
-      + '共花费 ' + money(night.amount) + '。',
+    '23:00 ~ 次日 05:00 之间共有 ' + night.count + ' 笔支出，'
+      + '合计 ' + money(night.amount) + '，占这 ' + s.days + ' 天支出的 ' + percent(night.amount, s.total) + '%。',
     [
       ev('深夜支出', money(night.amount)),
       ev('占支出比例', ratioText(night.amount, s.total)),
@@ -525,24 +524,17 @@ function detectMoonlight(s) {
   if (timeRatio <= 0 || spendRatio <= timeRatio) return null
   if (spendRatio / timeRatio < TH.MOONLIGHT_RATIO) return null
 
-  // 按当前速度外推：花光预算还需要多少天（从月初算起，到今天为止已过 daysPassed 天）
-  const dailyAvg = spent / daysPassed
-  if (!(dailyAvg > 0)) return null
-
-  const spentOn = Math.ceil(amount / dailyAvg)
-  const spentDate = spentOn > daysTotal ? daysTotal : spentOn
-
   return make(
     'moonlight', 'warn',
-    '按当前速度，本月 ' + spentDate + ' 号就会花光预算',
-    '本月已过 ' + daysPassed + ' 天（' + Math.round(timeRatio * 100) + '%），'
-      + '已花掉预算的 ' + Math.round(spendRatio * 100) + '%，建议开启「节流模式」。',
+    '预算已用掉 ' + Math.round(spendRatio * 100) + '%，时间过了 ' + Math.round(timeRatio * 100) + '%',
+    '本月已过 ' + daysPassed + ' 天（共 ' + daysTotal + ' 天），'
+      + '已花 ' + money(spent) + '，预算 ' + money(amount) + '，还剩 ' + b.daysLeft + ' 天。',
     [
       ev('本月预算', money(amount)),
       ev('已花', money(spent)),
       ev('已用比例', Math.round(spendRatio * 100) + '%'),
       ev('时间进度', Math.round(timeRatio * 100) + '%'),
-      ev('预计花光日期', '本月 ' + spentDate + ' 号')
+      ev('剩余天数', b.daysLeft + ' 天')
     ]
   )
 }

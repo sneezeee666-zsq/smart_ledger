@@ -43,7 +43,7 @@
       },
       {
         "pagePath": "pages/ai/ai",
-        "text": "智能分析",
+        "text": "消费小结",
         "iconPath": "assets/icons/ai.png",
         "selectedIconPath": "assets/icons/ai-active-green.png"
       },
