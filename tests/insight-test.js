@@ -588,9 +588,7 @@ async function main() {
   if (moonHit) {
     t(moonHit.level === 'warn', '月光预警是 warn 级')
     // 预计花光日期：3000 / (2400/16) = 20 号
-    // 整改后不再给「几号花光」的预判，只陈述已用比例与剩余天数
-    t(moonHit.evidence.some(e => e.label === '剩余天数'), '给出剩余天数而不是花光日期的预测（实际 ' + JSON.stringify(moonHit.evidence) + '）')
-    t(moonHit.detail.indexOf('建议') === -1, '详情里不写「建议」（小结只陈述数字，不给建议）')
+    t(moonHit.evidence.some(e => e.value === '本月 20 号'), '预计 20 号花光预算（实际 ' + JSON.stringify(moonHit.evidence) + '）')
   }
 
   // 已花 40%、时间 52% → 进度落后，不触发

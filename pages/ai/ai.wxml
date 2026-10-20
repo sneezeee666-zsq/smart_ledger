@@ -22,7 +22,7 @@
       hover-stay-time="60"
       bindtap="onAnalyze"
       disabled="{{analyzing}}"
-    >{{analyzing ? '正在汇总…' : '开始分析'}}</button>
+    >{{analyzing ? '分析中…' : '开始分析'}}</button>
 
     <text class="hero-note">统计范围：{{scopeText}}</text>
 
@@ -43,14 +43,14 @@
 
     <view class="card-head">
       <text class="card-title">分析结果</text>
-      <text class="more-link" wx:if="{{analyzed && !analyzing && !loadFailed}}" bindtap="onAnalyze">重新汇总</text>
+      <text class="more-link" wx:if="{{analyzed && !analyzing && !loadFailed}}" bindtap="onAnalyze">重新分析</text>
     </view>
 
     <!-- 还没点过：说明按钮能干什么 -->
     <view class="empty-state" wx:if="{{!analyzed}}">
       <image class="empty-icon" src="/assets/icons/empty-chart.png" mode="aspectFit" />
       <text class="empty-text">还没有分析数据</text>
-      <text class="empty-text">点上面的按钮，汇总最近 {{scopeDays}} 天的收支</text>
+      <text class="empty-text">点上面的按钮，分析最近 {{scopeDays}} 天的收支</text>
     </view>
 
     <!-- 加载中：骨架而不是空白，否则会以为按钮没生效 -->
@@ -104,10 +104,10 @@
     </view>
   </view>
 
-  <!-- ==================== 会汇总什么 ==================== -->
+  <!-- ==================== 会分析什么 ==================== -->
   <view class="card sec">
     <view class="card-head">
-      <text class="card-title">会汇总什么</text>
+      <text class="card-title">会分析什么</text>
     </view>
 
     <view class="dims">
