@@ -338,6 +338,16 @@
    实测里「兰花飘香」「孙道翔」「小红车（本地共享单车品牌）」仍留在「其他支出」——
    这是**故意**的：看不出行业就老实说不知道，为凑比例硬猜会把早饭记成宠物用品。
 
+5e. **改了规则要能迁移存量数据。**
+   分类是在**导入那一刻**算好写进文档的（`categoryId/icon/color` 一起存），
+   统计页按 `categoryId` 聚合。所以只改关键词，库里的老账还是旧结论 ——
+   用户会觉得「规则白改了」，而界面上完全看不出原因。
+   → 「我的 → 设置 → 重新识别分类」（`parseCSV` 的 `action:'reclassify'`）：
+   分批 + `_id` 游标（云函数 3 秒超时，一次扫全量必断；游标比 skip 稳且幂等），
+   只写有变化的记录，只改分类字段。
+   ⚠️ 更新必须 `where({_id, _openid})`：云函数是管理员身份、绕过集合权限，
+   只按 `_id` 更新等于「谁拿到别人的 id 都能改别人的分类」。
+
 6. **显示时间必须显式按 UTC+8 换算，不能依赖设备时区。**
    `format.wxs` 里所有取值都用 `getDate(ts + 8h)` + `getUTC*()`。
    若写成 `getDate(ts).getHours()`，结果会跟着设备时区漂移——用户出国或改系统时区，
@@ -517,7 +527,8 @@ smart-ledger/
 | `add` | `{ action:'add', bill:{...}, force? }` | 手动记一笔：校验 → 智能分类 → 服务端写入。返回 `code:2` 表示疑似重复，可用 `force:true` 强制写入 |
 | `detail` | `{ action:'detail', id }` | 读单条账单（编辑页预填用）。**条件里带 `_openid`** —— 用 `doc(id).get()` 会漏出别人的记录 |
 | `update` | `{ action:'update', id, bill:{...}, force? }` | 改一笔：校验（与 `add` 同一套）→ 重新分类 → **条件带 `_id` + `_openid`** 更新。一条都没改到时 `code:-1` |
-| `classify` | `{ action:'classify', bill:{title,product,type} }` | 只做分类预览，不写库（手动记账页输入时实时提示） |
+| `classify` | `{ action:'classify', bill:{title,product,type,tradeType?} }` | 只做分类预览，不写库（手动记账页输入时实时提示） |
+| `reclassify` | `{ action:'reclassify', lastId? }` | 按最新规则把**已入库**账单重新分类，分批（每批 20 条、按 `_id` 升序游标），返回 `{ scanned, updated, done, lastId }`；客户端循环到 `done`。只改 `category/categoryId/icon/color`，不碰金额与时间 |
 
 > **删除为什么也叫云函数**：① 云函数写入的文档客户端不一定删得掉（集合权限一旦不是
 > 「仅创建者可写」就会被静默拒绝）；② 只有在云函数里才能把 `_openid` 拼进查询条件，

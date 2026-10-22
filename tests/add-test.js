@@ -38,6 +38,7 @@ function matchField(actual, c) {
   if (typeof c === 'object' && c.__cond) {
     if (c.op === 'gte') return actual >= c.value
     if (c.op === 'lte') return actual <= c.value
+    if (c.op === 'gt') return actual > c.value
     if (c.op === 'and') return matchField(actual, c.parts[0]) && matchField(actual, c.parts[1])
     return false
   }
@@ -54,12 +55,24 @@ function makeCollection() {
   const api = {
     where(c) { state.cond = c || {}; return api },
     field() { return api },
-    orderBy() { return api },
+    orderBy(k, dir) { state.order = { k: k, dir: dir || 'asc' }; return api },
     skip(n) { state.skip = n; return api },
     limit(n) { state.limit = n; return api },
     async get() {
-      const rows = DOCS.filter(d => matchDoc(d, state.cond))
+      let rows = DOCS.filter(d => matchDoc(d, state.cond))
+      if (state.order) {
+        const k = state.order.k
+        const sign = state.order.dir === 'desc' ? -1 : 1
+        rows = rows.slice().sort((a, b) => (a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0) * sign)
+      }
       return { data: rows.slice(state.skip, state.skip + state.limit) }
+    },
+    async update({ data }) {
+      let updated = 0
+      DOCS.forEach(d => {
+        if (matchDoc(d, state.cond)) { Object.assign(d, data); updated++ }
+      })
+      return { stats: { updated: updated } }
     },
     async count() {
       return { total: DOCS.filter(d => matchDoc(d, state.cond)).length }
@@ -87,7 +100,8 @@ const cloudStub = {
       collection: makeCollection,
       command: {
         gte: v => cond('gte', v),
-        lte: v => cond('lte', v)
+        lte: v => cond('lte', v),
+        gt: v => cond('gt', v)
       }
     }
   },
@@ -417,6 +431,76 @@ async function testRealCorpus() {
   t(r.category.id === 'other_expense', '手动记账没有交易类型时，光一个人名不会被硬判成转账')
 }
 
+// ==================== 6) 重新识别分类（存量数据迁移） ====================
+//
+// 分类是**导入那一刻**算好写进文档的（categoryId/icon/color 一起存）。
+// 改了关键词之后，新账用新规则、老账还是旧结论 —— 统计页按 categoryId 聚合，
+// 于是「其他支出」的比例一动不动。这个动作负责把存量迁过去。
+async function testReclassify() {
+  console.log('\n=== 6) 重新识别分类：把存量账单迁到新规则 ===')
+
+  const OLD = { category: '其他支出', categoryId: 'other_expense', icon: '📝', color: '#CBD5E1' }
+
+  // 两条「旧结论」：title / tradeType 现在能被认出来
+  DOCS.push(Object.assign({
+    _id: 'old1', _openid: 'me', type: 'expense', amount: 800,
+    title: 'mch (TG27)', product: '转账备注:微信转账', tradeType: '转账', createTime: 1
+  }, OLD))
+  DOCS.push(Object.assign({
+    _id: 'old2', _openid: 'me', type: 'expense', amount: 20,
+    title: '哈麦德兰州牛肉拉面', product: '哈麦德兰州牛肉拉面', tradeType: '商户消费', createTime: 2
+  }, OLD))
+  // 别人的账单：一条都不许动
+  DOCS.push(Object.assign({
+    _id: 'zz1', _openid: 'other', type: 'expense', amount: 999,
+    title: 'mch (TG27)', product: '转账备注:微信转账', tradeType: '转账', createTime: 3
+  }, OLD))
+  // 补足 20 条以上，让「按 _id 游标分批」这条路径真的被走到
+  for (let i = 0; i < 25; i++) {
+    DOCS.push(Object.assign({
+      _id: 'pad' + String(i).padStart(2, '0'), _openid: 'me', type: 'expense', amount: 1,
+      title: '某不认识的小店' + i, product: '', tradeType: '商户消费', createTime: 10 + i
+    }, OLD))
+  }
+
+  // 模拟客户端：按 lastId 游标一直跑到 done
+  let lastId = ''
+  let scanned = 0
+  let rounds = 0
+  let ok = true
+  for (;;) {
+    const r = await call({ action: 'reclassify', lastId })
+    if (r.code !== 0) { ok = false; break }
+    scanned += r.data.scanned
+    if (r.data.done) break
+    lastId = r.data.lastId
+    if (++rounds > 100) { ok = false; break }
+  }
+
+  t(ok, '分批循环能正常收敛到 done')
+  t(rounds >= 1, `确实分了 ${rounds + 1} 批（每批 20 条，不是一次扫全量）`)
+  t(scanned >= 28, `扫到 ${scanned} 条`)
+  t(DOCS.find(d => d._id === 'old1').categoryId === 'transfer', '转账记录被迁到「转账往来」')
+  t(DOCS.find(d => d._id === 'old2').categoryId === 'food', '拉面店被迁到「餐饮」')
+  t(DOCS.find(d => d._id === 'old1').amount === 800 && DOCS.find(d => d._id === 'old1').createTime === 1,
+    '⚠️ 只改分类字段，金额与时间没被动过')
+  t(DOCS.find(d => d._id === 'zz1').categoryId === 'other_expense',
+    '⚠️ 别人的账单一条都没动（云函数是管理员身份，绝不能只按 _id 更新）')
+
+  // 幂等：已经是最新分类时不该再写库
+  let again = 0
+  let lid = ''
+  let guard = 0
+  for (;;) {
+    const r = await call({ action: 'reclassify', lastId: lid })
+    again += r.data.updated
+    if (r.data.done) break
+    lid = r.data.lastId
+    if (++guard > 100) break
+  }
+  t(again === 0, `再跑一遍 0 条变化（幂等；实际写入 ${again} 条）`)
+}
+
 ;(async () => {
   await testClassify()
   await testValidate()
@@ -425,6 +509,7 @@ async function testRealCorpus() {
   await testDuplicate()
   await testIntegration()
   await testRealCorpus()
+  await testReclassify()
 
   console.log(fail === 0 ? '\n全部通过 ✅' : `\n有 ${fail} 项失败 ❌`)
   process.exit(fail === 0 ? 0 : 1)

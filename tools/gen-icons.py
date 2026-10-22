@@ -231,6 +231,36 @@ def ic_inbox(d, c):
     stroke(d, [(6.4, 8.6), (12, 3.4), (17.6, 8.6)], c, 1.9)
 
 
+def ic_refresh(d, c):
+    """
+    循环箭头：重新识别分类 / 刷新。
+    ⚠️ 这里没有 arc helper（只有折线与空心圆），所以按角度算点再连成折线 ——
+       端点圆的半径足够小，24 个单位里看不出是折线。
+       角度制、y 轴向下：从 -50° 顺时针扫 300°，留出右上方的缺口给箭头。
+    """
+    import math
+
+    cx, cy, r = 12.0, 12.0, 7.0
+    start, sweep, steps = -50.0, 300.0, 36
+
+    pts = []
+    for i in range(steps + 1):
+        a = math.radians(start + sweep * i / steps)
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    stroke(d, pts, c, 2.0)
+
+    # 箭头贴在终点，沿切线张开
+    a_end = math.radians(start + sweep)
+    ex, ey = cx + r * math.cos(a_end), cy + r * math.sin(a_end)
+    tx, ty = -math.sin(a_end), math.cos(a_end)      # 切线（顺时针方向）
+    nx, ny = math.cos(a_end), math.sin(a_end)       # 径向
+    poly(d, [
+        (ex + tx * 3.6, ey + ty * 3.6),
+        (ex - tx * 0.4 + nx * 2.7, ey - ty * 0.4 + ny * 2.7),
+        (ex - tx * 0.4 - nx * 2.7, ey - ty * 0.4 - ny * 2.7),
+    ], c)
+
+
 # ---------------------------------------------- 从 utils/theme-color.js 取自定义色分档
 
 def read_buckets(root):
@@ -372,6 +402,8 @@ def main():
         ('mi-user.png', ic_person, TEAL, FX_SIZE),
         # 常记的：靛蓝书签
         ('mi-pick.png', ic_bookmark, INDIGO, FX_SIZE),
+        # 重新识别分类：循环箭头（琥珀，和「分类是怎么识别的」同一色系）
+        ('mi-refresh.png', ic_refresh, AMBER, FX_SIZE),
     ]
 
     # ---- 深底上的白色标记（hero 卡里用，不跟主题走）----

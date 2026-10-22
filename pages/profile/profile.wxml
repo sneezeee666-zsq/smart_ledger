@@ -87,12 +87,23 @@
     </view>
 
     <!-- 常记的：它是"配一个功能"，不是"看一段说明"，所以放在设置里 -->
-    <view class="menu-item menu-item-last" bindtap="goQuickPicks" hover-class="menu-hover" hover-stay-time="60">
+    <view class="menu-item" bindtap="goQuickPicks" hover-class="menu-hover" hover-stay-time="60">
       <view class="menu-icon ic-indigo">
         <image class="menu-img" src="/assets/icons/mi-pick.png" mode="aspectFit" />
       </view>
       <text class="menu-text">配置「常记的」</text>
       <text class="menu-sub">快捷记账按钮</text>
+      <text class="menu-arrow">›</text>
+    </view>
+
+    <!-- 重新识别分类：分类是导入那一刻算好存下的，改过规则后老账要靠它迁移。
+         放在「设置」而不是「说明」，因为这是一个动作，不是一段解释。 -->
+    <view class="menu-item menu-item-last" bindtap="onReclassify" hover-class="menu-hover" hover-stay-time="60">
+      <view class="menu-icon ic-amber">
+        <image class="menu-img" src="/assets/icons/mi-refresh.png" mode="aspectFit" />
+      </view>
+      <text class="menu-text">重新识别分类</text>
+      <text class="menu-sub">按最新规则</text>
       <text class="menu-arrow">›</text>
     </view>
     <!-- 后续设置项（提醒等）加在这里，

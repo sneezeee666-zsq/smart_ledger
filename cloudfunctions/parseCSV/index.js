@@ -53,6 +53,11 @@ exports.main = async (event, context) => {
     return await updateManualBill(openid, event.id, event.bill || {}, !!event.force)
   }
 
+  // 分支：按最新规则重新识别历史账单的分类（只改分类字段，不动金额/时间/_openid）
+  if (event.action === 'reclassify') {
+    return await reclassifyBills(openid, event)
+  }
+
   // 分支：仅预览分类结果（手动记账页输入时实时提示，不写库）
   if (event.action === 'classify') {
     const b = event.bill || {}
@@ -127,6 +132,83 @@ exports.main = async (event, context) => {
   } catch (err) {
     console.error('parseBill error:', err)
     return { code: -1, message: err.message || '解析失败', data: [], count: 0 }
+  }
+}
+
+// ==================== 重新识别分类 ====================
+
+/**
+ * 把**已入库**的账单按当前规则重新分类
+ *
+ * 为什么需要它：
+ *   分类是在**导入那一刻**算好写进文档的（categoryId/icon/color 一起存）。
+ *   后来改了关键词，新导入的账用新规则，库里的老记录却还是旧结论 ——
+ *   统计页按 categoryId 聚合，于是「其他支出」的比例一动不动，
+ *   用户会认为「规则白改了」。清空重导能解决，但代价是把数据全删一遍。
+ *
+ * 设计取舍：
+ *  - **分批 + _id 游标**：云函数 3 秒超时，一次扫全量必然中断。按 `_id` 升序游标
+ *    比 skip 分页稳（skip 在并发写时会漏记录），中途失败重跑也是幂等的。
+ *  - **只写有变化的记录**：绝大多数记录分类不会变，白写一遍既慢，
+ *    又会让 updateTime 失去「用户真的动过」的含义。
+ *  - **不碰 amount / createTime / _openid**：分类迁移不该改账目本身。
+ *
+ * ⚠️ 更新必须用 where({_id, _openid})：云函数以管理员身份运行、绕过集合权限，
+ *    只按 _id 更新等于「谁拿到别人的 id 都能改别人的分类」。
+ *
+ * @param {string} event.lastId 上一批最后一条的 _id（首次传空串）
+ */
+async function reclassifyBills(openid, event) {
+  const BATCH = 20
+  const lastId = String(event.lastId || '')
+
+  try {
+    const where = { _openid: openid }
+    if (lastId) where._id = _.gt(lastId)
+
+    const res = await db.collection('bills')
+      .where(where)
+      .field({
+        title: true, product: true, tradeType: true, type: true,
+        category: true, categoryId: true, icon: true, color: true
+      })
+      .orderBy('_id', 'asc')
+      .limit(BATCH)
+      .get()
+
+    const docs = (res && res.data) || []
+    if (!docs.length) {
+      return { code: 0, data: { scanned: 0, updated: 0, done: true, lastId: lastId } }
+    }
+
+    const jobs = []
+    let changed = 0
+    for (const d of docs) {
+      const c = smartClassify(d.title || '', d.product || '', '', d.type, d.tradeType)
+      if (d.categoryId === c.id && d.category === c.name &&
+        d.icon === c.icon && d.color === c.color) continue
+      changed++
+      jobs.push(
+        db.collection('bills')
+          .where({ _id: d._id, _openid: openid })
+          .update({ data: { category: c.name, categoryId: c.id, icon: c.icon, color: c.color } })
+      )
+    }
+    if (jobs.length) await Promise.all(jobs)
+
+    return {
+      code: 0,
+      data: {
+        scanned: docs.length,
+        updated: changed,
+        // 不满一批就说明扫到底了
+        done: docs.length < BATCH,
+        lastId: docs[docs.length - 1]._id
+      }
+    }
+  } catch (err) {
+    console.error('reclassify error:', err)
+    return { code: -1, message: err.message || '重新识别失败', data: null }
   }
 }
 

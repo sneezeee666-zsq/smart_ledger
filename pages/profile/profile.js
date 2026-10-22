@@ -26,8 +26,12 @@ const RULE_SUMMARY = [
   '医疗健康 —— 医院、药、医疗、诊所、体检…',
   '教育 —— 教育、培训、学费、书店、课程…',
   '通讯 —— 话费、流量、中国移动、中国联通、中国电信…',
+  '转账往来 —— 转账、红包、还款。这类是钱在挪位置、不是消费，靠账单的「交易类型」判断',
+  '订阅/软件 —— App Store、iCloud、API、云服务（Steam 买断游戏仍归「娱乐」）',
   '工资 / 奖金 / 理财收益 / 红包转账 / 退款 —— 按交易对方与商品里的关键词识别',
-  '兜底 —— 没命中任何关键词时，按收支分别归入「其他收入 / 其他支出」'
+  '兜底 —— 没命中任何关键词时，按收支分别归入「其他收入 / 其他支出」',
+  '',
+  '改过规则后，可在「设置 → 重新识别分类」把已导入的老账按最新规则重新归类。'
 ].join('\n')
 
 // ==================== 关于本应用 ====================
@@ -579,6 +583,83 @@ Page({
       showCancel: false,
       confirmText: '知道了'
     })
+  },
+
+  /**
+   * 重新识别分类
+   *
+   * 为什么需要它：分类是**导入那一刻**算好写进文档的（categoryId/icon/color 一起存）。
+   * 后来改了关键词，新账用新规则、老账还是旧结论 —— 统计页按 categoryId 聚合，
+   * 于是「其他支出」的比例一动不动，用户会以为规则白改了。
+   *
+   * ⚠️ 先确认、后 loading：wx.showLoading({mask:true}) 会盖在 showModal 上，
+   *    看起来像卡死（账单页踩过同一个坑）。
+   */
+  onReclassify() {
+    if (this._reclassifying) return
+    wx.showModal({
+      title: '重新识别分类',
+      content: '按最新的规则把已导入的历史账单重新归类。\n' +
+        '账单的金额、时间、备注都不会变，只改分类。\n\n' +
+        '账单多时需要几秒，请勿退出。',
+      confirmText: '开始',
+      success: (res) => {
+        if (res.confirm) this.runReclassify()
+      }
+    })
+  },
+
+  /**
+   * 分批跑完整个库。
+   * 云函数 3 秒超时，一次扫全量必断，所以服务端按 _id 游标分批（每批 20 条），
+   * 这里负责循环到 done。
+   */
+  async runReclassify() {
+    this._reclassifying = true
+    wx.showLoading({ title: '正在识别…', mask: true })
+
+    let lastId = ''
+    let scanned = 0
+    let updated = 0
+    let rounds = 0
+
+    try {
+      for (;;) {
+        const res = await wx.cloud.callFunction({
+          name: 'parseCSV',
+          data: { action: 'reclassify', lastId }
+        })
+        const r = (res && res.result) || {}
+        if (r.code !== 0 || !r.data) throw new Error(r.message || '识别失败')
+
+        scanned += r.data.scanned || 0
+        updated += r.data.updated || 0
+
+        if (r.data.done) break
+        lastId = r.data.lastId
+        rounds++
+
+        // ⚠️ 硬闸门：游标万一不前进（服务端回了同一个 lastId），这个循环会一直转下去
+        if (rounds > 300) break
+
+        wx.showLoading({ title: '已处理 ' + scanned + ' 条', mask: true })
+      }
+
+      wx.hideLoading()
+      if (!scanned) {
+        wx.showToast({ title: '还没有账单可以识别', icon: 'none' })
+      } else if (updated) {
+        wx.showToast({ title: '已更新 ' + updated + ' 条分类', icon: 'none' })
+      } else {
+        wx.showToast({ title: '分类已是最新', icon: 'none' })
+      }
+    } catch (err) {
+      wx.hideLoading()
+      console.error('重新识别分类失败:', err)
+      wx.showToast({ title: '识别失败，请重试', icon: 'none' })
+    } finally {
+      this._reclassifying = false
+    }
   },
 
   showPrivacy() {

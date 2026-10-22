@@ -140,5 +140,74 @@ console.log('\n=== 5) 没挑过色时也不能是空预览 ===')
   t(hit.length === 1, `打开时色板里高亮了一格（${page.data.cp.hex}）`)
 }
 
-console.log('\n' + (fail === 0 ? '全部通过 ✅' : '有 ' + fail + ' 项失败 ❌'))
-process.exit(fail === 0 ? 0 : 1)
+// ⚠️ 这里守的不是分类对不对（云函数那侧由 add-test 守），而是**循环本身**：
+//    游标有没有真的往下传、done 之后会不会停、服务端抽风时会不会转死。
+async function testReclassifyPage() {
+  console.log('\n=== 6) 重新识别分类：分批循环 ===')
+  {
+    const { page, toastCalls } = loadProfile()
+
+    const calls = []
+    let batch = 0
+    global.wx.showLoading = () => {}
+    global.wx.hideLoading = () => {}
+    global.wx.showModal = (o) => { o.success({ confirm: true }) }
+    global.wx.cloud = {
+      callFunction(o) {
+        calls.push(o.data)
+        batch++
+        if (batch === 1) {
+          return Promise.resolve({ result: { code: 0, data: { scanned: 20, updated: 7, done: false, lastId: 'b1' } } })
+        }
+        return Promise.resolve({ result: { code: 0, data: { scanned: 5, updated: 2, done: true, lastId: 'b2' } } })
+      }
+    }
+
+    await page.runReclassify()
+
+    t(calls.length === 2, `按 done 收敛，共请求 ${calls.length} 次`)
+    t(calls[0].action === 'reclassify' && calls[0].lastId === '', '第一批不带游标')
+    t(calls[1].lastId === 'b1', `第二批带上第一批返回的游标（实际「${calls[1].lastId}」）`)
+    const last = toastCalls[toastCalls.length - 1]
+    t(last === '已更新 9 条分类', `完成提示报的是两批之和（实际「${last}」）`)
+  }
+
+  {
+    const { page, toastCalls } = loadProfile()
+    global.wx.showLoading = () => {}
+    global.wx.hideLoading = () => {}
+    global.wx.cloud = { callFunction() { return Promise.reject(new Error('网络波动')) } }
+
+    const realError = console.error
+    console.error = () => {}          // 这条用例故意制造失败，别把堆栈打到测试输出里
+    try {
+      await page.runReclassify()
+    } finally {
+      console.error = realError
+    }
+    t(toastCalls.indexOf('识别失败，请重试') !== -1, '失败有明确提示，不会静默卡在 loading')
+  }
+
+  {
+    // 服务端一直回 done:false 且游标不前进 → 必须被硬闸门拦住，不能转死
+    const { page } = loadProfile()
+    global.wx.showLoading = () => {}
+    global.wx.hideLoading = () => {}
+    let n = 0
+    global.wx.cloud = {
+      callFunction() {
+        n++
+        return Promise.resolve({ result: { code: 0, data: { scanned: 20, updated: 0, done: false, lastId: 'same' } } })
+      }
+    }
+
+    await page.runReclassify()
+    t(n > 0 && n < 400, `游标打滑时被硬闸门拦住（实际请求 ${n} 次）`)
+  }
+}
+
+;(async () => {
+  await testReclassifyPage()
+  console.log('\n' + (fail === 0 ? '全部通过 ✅' : '有 ' + fail + ' 项失败 ❌'))
+  process.exit(fail === 0 ? 0 : 1)
+})()
