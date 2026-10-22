@@ -21,3 +21,6 @@ nohup.out
 # 部分套件会写一个临时副本再删除（如 vip-test 的 index.__viptest.js），
 # 用例中途崩溃时可能留下，不该进版本库
 cloudfunctions/**/__*.js
+
+# WorkBuddy 的项目数据（对话记忆、会话缓存）：属于本机工作资料，不进版本库
+.workbuddy/
