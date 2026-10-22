@@ -51,7 +51,28 @@ const TH = {
   FIXED_TOLERANCE: 0.2,       // 固定支出：每月金额相对中位数的浮动上限
   FIXED_MIN_ABS: 30,          // 固定支出：每月金额低于这个数不值得单列
   MIN_COUNT: 3,               // 少于这么多笔不给结论 —— 说明不了「习惯」
-  MAX_ITEMS: 7                // 最多给几条 —— 结论一多就变成噪音
+  MAX_ITEMS: 7,               // 最多给几条 —— 结论一多就变成噪音
+  MONTH_MAX_ITEMS: 2          // 自然月口径最多占几条（见 MONTH_SCOPED 的注释）
+}
+
+// ==================== 口径：窗口 vs 自然月 ====================
+//
+// 结论有两套窗口，**数字不能互相冒充**：
+//   ① window —— 严格在用户选的「近 N 天」里算（日均、类目占比、大额、深夜、商户…）
+//   ② month  —— 按自然月算（本月至今的预算进度 / 月光预警 / 跨月同期对比 /
+//                类目月度变化 / 连续 3 个月的固定支出）
+//
+// ⚠️ 踩过的坑（用户实测反馈）：选「近 7 天」后，页面前 7 条里 5 条是月度口径 ——
+//    预算、月光、跨月、类目变化、固定支出全都排在窗口结论前面，
+//    用户看到的全是「本月 ¥3955」「上月同期」，于是判定「选了 7 天，分析的还是 30 天」。
+//    窗口其实是对的（summary.days 确实是 7），是**排序把窗口结论挤没了**。
+//    所以这里规定：窗口结论优先，月度结论后置且限流。
+const MONTH_SCOPED = {
+  budget: 1,
+  moonlight: 1,
+  mom: 1,
+  catMom: 1,
+  fixed: 1
 }
 
 // ==================== 「其他支出 / 其他收入」是兜底桶 ====================
@@ -843,14 +864,45 @@ function buildInsights(s) {
     detectBaseline(s)
   ].filter(Boolean)
 
-  // 严重的排前面；同级按固定 priority —— 不依赖数组顺序，以后加规则也不会乱序
+  // 每条都带上口径：页面据此给月度结论加「按自然月」小标签，
+  // ⚠️ 也必须带上 —— 不加标签的话，用户仍会把「本月支出 ¥3955」当成近 7 天的数字。
+  for (let i = 0; i < list.length; i++) {
+    list[i].scope = MONTH_SCOPED[list[i].id] ? 'month' : 'window'
+  }
+
+  // 严重的排前面；同级时**窗口口径优先**；再同级按固定 priority —— 不依赖数组顺序
   list.sort((a, b) => {
     const w = (LEVEL_WEIGHT[b.level] || 0) - (LEVEL_WEIGHT[a.level] || 0)
     if (w !== 0) return w
+    const s = (a.scope === 'window' ? 0 : 1) - (b.scope === 'window' ? 0 : 1)
+    if (s !== 0) return s
     return (PRIORITY[a.id] || 99) - (PRIORITY[b.id] || 99)
   })
 
-  return list.slice(0, TH.MAX_ITEMS)
+  // 月度口径限流 + 后置（见 MONTH_SCOPED 上方的注释）。
+  // ⚠️ 限流是**硬上限**，不因为"窗口结论没填满"就放回来：
+  //    一放回来就回到原点 —— 账单少的用户窗口结论本来就少，月度结论又会占满整屏。
+  //    少给几条比给错范围好：规则只在有明确发现时才说话，凑满 7 条从来不是目标。
+  const picked = []
+  let monthCount = 0
+  for (let i = 0; i < list.length; i++) {
+    if (picked.length >= TH.MAX_ITEMS) break
+    const x = list[i]
+    // baseline（概况）是"底数"不是一条发现 —— 单独垫底，别占正经结论的位置
+    if (x.id === 'baseline') continue
+    if (x.scope === 'month') {
+      if (monthCount >= TH.MONTH_MAX_ITEMS) continue
+      monthCount++
+    }
+    picked.push(x)
+  }
+
+  // baseline（概况）是"底数"不是一条发现 —— 只在还有空位时垫底。
+  // 一条别的结论都没有时，它就是全部内容（新用户最常见的状态）。
+  const baseline = list.filter(x => x.id === 'baseline')[0]
+  if (baseline && picked.length < TH.MAX_ITEMS) picked.push(baseline)
+
+  return picked
 }
 
 module.exports = {

@@ -1030,7 +1030,11 @@ async function buildInsightData(openid, requestedDays) {
       //   ② 将来接大模型时，它就是送进 prompt 的那份输入，不用另拼
       summary: summary,
       meta: {
+        // ⚠️ scanned 是**取数条数**（为了月度视角多取了 3 个自然月），不等于分析的条数。
+        //    页脚一度直接显示它 → 选「近 7 天」时显示「扫描 62 笔」，
+        //    用户据此判定"分析的还是 30 天的数据"。界面该用的是 windowCount。
         scanned: records.length,
+        windowCount: curCount,
         hasBudget: !!budget,
         // 明确告诉前端这些结论是规则算出来的 —— 界面上要如实标注，
         // 不能让用户以为是大模型"分析"出来的。

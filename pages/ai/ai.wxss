@@ -185,6 +185,16 @@
   font-weight: 500;
 }
 
+/* 口径标签：告诉用户这条结论不是"所选 N 天"算的。
+   用描边而不是实底 —— 它是说明，不该和左侧的严重程度角标抢注意力。 */
+.ins-scope {
+  padding: 3rpx 12rpx;
+  border-radius: var(--r-pill);
+  border: 1rpx solid var(--line-strong);
+  font-size: 19rpx;
+  color: var(--ink-3);
+}
+
 .ins-title {
   display: block;
   font-size: 29rpx;

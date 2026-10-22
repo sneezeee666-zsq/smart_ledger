@@ -526,7 +526,7 @@ smart-ledger/
 | `profile` | — | `{ totalBills, totalDays, firstTime, lastTime }` |
 | `budget` | — | `{ budget }` —— 预算进度块；**没设过预算是 `null`**（不是 `amount:0` 的对象） |
 | `quickPicks` | `forceAuto`（可选） | `{ picks: [...], source: 'user'|'auto' }` —— 首页面板的「常记的」，最多 **10** 个。**优先返回用户在「常记的」页配置的列表**（顺序即用户拖出来的顺序）；按 `quickPicksMode` 决定：`manual` 用用户列表、`auto` 走推荐；老数据没有该字段时按列表存不存在推断。只有 auto 才按「对方 + 收/支」聚合近 90 天推荐（只留 ≥2 次的，金额取最近一次）。⚠️ `quickPicks: []` 表示用户主动清空 → 返回空**且不回退推荐**；`forceAuto:true` 强制走推荐（配置页拿候选） |
-| `insight` | `days`（可选 `7`/`30`，默认 30） | `{ scope, insights[], summary, meta }` —— 规则引擎结论，**对所有人开放**；`days` 只影响滚动窗口那几条，跨月对比 / 类目变化 / 固定支出按自然月算 |`insights` 每条含 `id/level/title/detail/evidence[]`，**没有可说的结论时是空数组**（不返回套话）；`summary` 是算出这些结论的完整摘要（含 `months: { current, prevSame, recent[3] }` 与 `fixedCandidates`），界面上不渲染、但测试与将来的 prompt 都用它 |
+| `insight` | `days`（可选 `7`/`30`，默认 30） | `{ scope, insights[], summary, meta }` —— 规则引擎结论，**对所有人开放**；`days` 只影响滚动窗口那几条，跨月对比 / 类目变化 / 固定支出按自然月算 |`insights` 每条含 `id/level/scope/title/detail/evidence[]`（`scope` = `window` 严格按所选 N 天算 / `month` 按自然月算，页面据此标「按自然月」），**没有可说的结论时是空数组**（不返回套话）；`meta` 含 `scanned`（**取数**条数，含为月度视角多取的 3 个自然月，别往界面上放）、`windowCount`（本期笔数，页脚用这个）、`hasBudget`、`generatedBy`；`summary` 是算出这些结论的完整摘要（含 `months: { current, prevSame, recent[3] }` 与 `fixedCandidates`），界面上不渲染、但测试与将来的 prompt 都用它 |
 
 `period` 取值：`day` | `week` | `month` | `year` | `all`（周一为一周之首；月末/年末截止到「今天」）
 
@@ -980,6 +980,13 @@ node tests/run-all.js
 > 界面上有一行小字专门说明这件事 —— 不说明的话用户会以为范围开关坏了。
 > 两者的 `total` 也不是一个数（「近 N 天」是滚动窗口，「本月」是自然月至今），
 > 文案里必须写清是哪一个窗口，否则用户会拿两个数字互相对账然后觉得算错了。
+>
+> ⚠️ **口径决定排序**：每条结论都带 `scope`（`window` 严格在所选 N 天内算 / `month` 按自然月算）。
+> 同级严重程度时窗口口径优先；自然月口径**最多 2 条**（`TH.MONTH_MAX_ITEMS`），且卡片上标「按自然月」。
+> 这条是踩出来的：5 条月度口径曾经因为「更严重」全排在窗口结论前面，选「近 7 天」前 7 条里 5 条是
+> 「本月 ¥3955」，用户直接判定「范围开关没生效」—— 窗口其实一直是对的，是排序把 7 天的结论挤没了。
+> 页脚显示的也是 `meta.windowCount`（本期笔数）。**不能**用 `meta.scanned`：那是为了月度视角
+> 多取 3 个自然月后的取数条数，选 7 天时会显示成「扫描 62 笔」。
 >
 > 原生 tabBar 官方上限是 **5 项**（2~5，超了直接编译失败），所以这是最后一栏，
 > 以后要再加页面只能走「更多」聚合页或改造自定义 tabBar。

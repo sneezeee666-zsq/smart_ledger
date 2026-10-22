@@ -208,6 +208,57 @@ function loadAiPage() {
     t(fixedDim && fixedDim.desc.indexOf('每月') !== -1, '「固定支出」的说明里点明是每月都发生的')
   }
 
+  // ================================================================
+  console.log('\n=== 6) 口径标签与页脚笔数（「选 7 天却像 30 天」的回归）===')
+  // ================================================================
+  // ⚠️ 用户实测：「选仅 7 天，分析的还是 30 天的数据」。
+  //    窗口其实一直是 7 天，是三件事让它看着像 30 天：
+  //      ① 月度口径的结论排在前面（云端已改成后置 + 限流 2 条）
+  //      ② 月度结论没有标识 → 用户把「本月 ¥3955」当成 7 天的数字
+  //      ③ 页脚显示的是**取数条数**（3 个自然月），不是本期笔数
+  {
+    const page = loadAiPage()
+    global.wx.cloud = {
+      callFunction() {
+        return Promise.resolve({
+          result: {
+            code: 0,
+            data: {
+              scope: { days: 7 },
+              insights: [
+                { id: 'trend', level: 'tip', title: '日均', detail: 'd', evidence: [], scope: 'window' },
+                { id: 'budget', level: 'warn', title: '预算', detail: 'd', evidence: [], scope: 'month' }
+              ],
+              meta: { scanned: 62, windowCount: 16, hasBudget: true }
+            }
+          }
+        })
+      }
+    }
+    page.setData({ scopeDays: 7 })
+    await page.onAnalyze()
+
+    const win = page.data.insights.find(x => x.id === 'trend')
+    const mon = page.data.insights.find(x => x.id === 'budget')
+    t(win && win.scopeTag === '', '窗口口径的结论不带标签（它就是所选 N 天的数字）')
+    t(mon && mon.scopeTag === '按自然月',
+      `月度口径的结论带「按自然月」标签（实际 ${mon && JSON.stringify(mon.scopeTag)}）`)
+  }
+
+  {
+    const fs = require('fs')
+    const wxml = fs.readFileSync(path.join(__dirname, '..', 'pages/ai/ai.wxml'), 'utf8')
+
+    t(/meta\.windowCount/.test(wxml), '页脚显示本期笔数 meta.windowCount')
+    t(!/\{\{meta\.scanned\}\}/.test(wxml),
+      '页脚不再直接显示 meta.scanned（它是 3 个自然月的取数条数，选 7 天时会显示成「扫描 62 笔」）')
+    t(/ins-scope/.test(wxml), '结论卡渲染了口径标签（只有数据没有标签 = 用户还是会误会）')
+
+    const sub = wxml.match(/hero-note-sub"[^>]*>([^<]+)</)
+    t(!!sub && sub[1].indexOf('预算进度') !== -1,
+      `hero 下方那行说明把「预算进度」也算进自然月口径（实际「${sub ? sub[1] : '未找到'}」）`)
+  }
+
   console.log('\n' + (fail ? '❌ ' + fail + ' 项未通过' : '✅ 全部通过'))
   process.exit(fail ? 1 : 0)
 })()

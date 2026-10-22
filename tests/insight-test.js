@@ -820,6 +820,13 @@ async function main() {
   t(s7.days === 7, 'summary.days = 7')
   t(s7.total === 570, '近 7 天支出合计 570（实际 ' + s7.total + '）—— 上期两笔不计入')
   t(s7.count === 4, '近 7 天 4 笔（实际 ' + s7.count + '）')
+  // ⚠️ meta.scanned 是**取数条数**（为了月度视角取了 3 个自然月），不等于分析的条数。
+  //    页脚一度直接显示它 → 选「近 7 天」显示「扫描 6 笔」，和 4 笔对不上，
+  //    用户会以为分析的是别的范围。界面必须用 windowCount。
+  t(r7.data.meta.windowCount === 4,
+    `windowCount = 本期笔数 4（实际 ${r7.data.meta.windowCount}）—— 页脚该用它`)
+  t(r7.data.meta.scanned > r7.data.meta.windowCount,
+    `取数条数 ${r7.data.meta.scanned} 大于本期笔数 ${r7.data.meta.windowCount}（这正是不能直接显示 scanned 的原因）`)
   t(s7.prev.total === 100, '上期（再往前 7 天）支出 100（实际 ' + s7.prev.total + '）')
   // 深夜消费：10/12 23:30 那笔 90 元落在深夜（23:00 ~ 05:00）
   t(s7.night.amount === 90, '深夜支出 90（实际 ' + s7.night.amount + '）—— 23:30 那笔')
@@ -1128,6 +1135,96 @@ async function main() {
   t(rScope.data.insights.find(x => x.id === 'trend') == null,
     `本期与上期日均持平 → 不报涨跌（实际 ${rScope.data.insights.map(x => x.id).join(',') || '无'}）`)
   audit(rScope.data.insights, rScope.data.summary, '取数范围回归')
+
+  // ================================================================
+  console.log('\n=== 19) 口径：选「近 7 天」不能被自然月结论占满（回归）===')
+  // ================================================================
+  // ⚠️ 用户实测反馈：「选仅 7 天，分析的还是 30 天的数据」。
+  //    窗口本身一直是对的（summary.days 就是 7），坏在**排序**：
+  //    预算进度 / 月光预警 / 跨月对比 / 类目变化 / 固定支出 这 5 条都按自然月算，
+  //    却因为 level 更"严重"全部排在窗口结论前面 —— 前 7 条里 5 条是「本月 ¥3955」，
+  //    用户当然认为范围开关没生效。修法是：给每条打口径标记、月度口径限流 2 条。
+  {
+    const sum7 = baseSummary({
+      days: 7,
+      compareDays: 7,
+      total: 205,
+      count: 16,
+      categories: [
+        { id: 'food', name: '餐饮', amount: 160, count: 12 },
+        { id: 'transport', name: '交通', amount: 45, count: 4 }
+      ],
+      merchants: [{ title: '早餐铺', amount: 180, count: 14 }],
+      smallFreq: { count: 16, amount: 205, limit: 20 },
+      prev: { total: 350, count: 9, days: 7 },
+      weekend: { days: 2, total: 30 },
+      weekday: { days: 5, total: 175 },
+      daysWithoutSpend: 0,
+      lastExpenseDate: '10月22日',
+      budget: Object.assign(mkBudget(3955, 5000), { level: 'warn', usedPercent: 79 }),
+      months: {
+        current: {
+          label: '10月', days: 22, total: 3955, count: 30,
+          cats: [{ id: 'housing', name: '住房', amount: 3000, count: 1 },
+            { id: 'food', name: '餐饮', amount: 955, count: 29 }]
+        },
+        prevSame: {
+          label: '9月', days: 22, total: 3660, count: 26,
+          cats: [{ id: 'housing', name: '住房', amount: 3000, count: 1 },
+            { id: 'food', name: '餐饮', amount: 660, count: 25 }]
+        },
+        recent: []
+      },
+      fixedCandidates: [{ title: '房东', amounts: [3000, 3000, 3000], counts: [1, 1, 1] }]
+    })
+
+    const out7 = ins.buildInsights(sum7)
+    const monthItems = out7.filter(x => x.scope === 'month')
+    const winItems = out7.filter(x => x.scope === 'window')
+
+    t(out7.length > 0 && out7.every(x => x.scope === 'window' || x.scope === 'month'),
+      `每条结论都带口径标记（页面据此显示「按自然月」）`)
+    t(monthItems.length <= ins.TH.MONTH_MAX_ITEMS,
+      `自然月口径最多 ${ins.TH.MONTH_MAX_ITEMS} 条（实际 ${monthItems.length}：${monthItems.map(x => x.id).join(',') || '无'}）`)
+    t(winItems.length > monthItems.length,
+      `窗口口径条数多于自然月（窗口 ${winItems.length} / 月度 ${monthItems.length}）`)
+    t(out7[0].scope === 'window',
+      `⚠️ 回归点：同级（都是 warn）时窗口结论排在月度结论前面（实际第一条 ${out7[0].id}/${out7[0].scope}；修复前这里会是 moonlight/budget）`)
+    t(out7[out7.length - 1].id === 'baseline',
+      `baseline（概况）垫底，不占正经结论的位置（实际最后一条 ${out7[out7.length - 1].id}）`)
+
+    // 上限仍然生效
+    t(out7.length <= ins.TH.MAX_ITEMS, `总数不超过 ${ins.TH.MAX_ITEMS} 条（实际 ${out7.length}）`)
+    audit(out7, sum7, '口径排序')
+  }
+
+  // ================================================================
+  console.log('\n=== 20) 口径标记只认「那 5 条」，别把窗口规则误标成月度 ===')
+  // ================================================================
+  {
+    const checked = ins.buildInsights(baseSummary({
+      total: 2000, count: 60,
+      categories: [{ id: 'a', name: '餐饮', amount: 1000, count: 30 },
+        { id: 'b', name: '交通', amount: 600, count: 15 },
+        { id: 'c', name: '购物', amount: 400, count: 15 }],
+      merchants: [{ title: '美团外卖', amount: 900, count: 28 }],
+      smallFreq: { count: 12, amount: 180, limit: 20 },
+      prev: { total: 1200, count: 40, days: 30 },
+      weekend: { days: 8, total: 700 },
+      weekday: { days: 22, total: 1300 },
+      daysWithoutSpend: 5,
+      lastExpenseDate: '10月11日',
+      budget: Object.assign(mkBudget(2000, 2500), { level: 'near', usedPercent: 80 })
+    }))
+    const MONTH_IDS = ['budget', 'moonlight', 'mom', 'catMom', 'fixed']
+    const mislabeled = checked.filter(x => MONTH_IDS.indexOf(x.id) !== -1 ? x.scope !== 'month' : x.scope !== 'window')
+    t(mislabeled.length === 0,
+      `口径标记与规则来源一致（标错的：${mislabeled.map(x => x.id + '=' + x.scope).join(',') || '无'}）`)
+    // 大额/深夜/商户这些都在所选窗口里算，标成 month 会让用户以为它们不受范围影响
+    const windowIds = ['category', 'large', 'night', 'smallFreq', 'merchant', 'weekend', 'noSpend', 'baseline', 'trend']
+    const wrongly = checked.filter(x => windowIds.indexOf(x.id) !== -1 && x.scope !== 'window')
+    t(wrongly.length === 0, `窗口规则没有被误标成月度（${wrongly.map(x => x.id).join(',') || '无'}）`)
+  }
 
   Date.now = REAL_NOW
 

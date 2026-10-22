@@ -37,9 +37,9 @@
       >{{item.label}}</view>
     </view>
 
-    <!-- ⚠️ 必须写这句：跨月结论按自然月算，切到「近 7 天」后它照样出现。
+    <!-- ⚠️ 必须写这句：预算进度 / 跨月对比 / 固定支出按自然月算，切到「近 7 天」后它照样出现。
          不说明的话，用户选 7 天却看到「本月比上月多花」，会以为范围开关坏了。 -->
-    <text class="hero-note hero-note-sub">跨月对比与固定支出按自然月统计，不受上面的范围影响</text>
+    <text class="hero-note hero-note-sub">预算进度、跨月对比、固定支出按自然月统计，不受上面的范围影响</text>
   </view>
 
   <!-- ==================== 分析结果 ==================== -->
@@ -82,6 +82,8 @@
       <view class="ins" wx:for="{{insights}}" wx:key="id">
         <view class="ins-head">
           <text class="ins-badge bd-{{item.level}}">{{item.levelText}}</text>
+          <!-- 口径标签：这条数字是「本月 / 上月同期 / 3 个月」算的，不是所选 N 天的 -->
+          <text class="ins-scope" wx:if="{{item.scopeTag}}">{{item.scopeTag}}</text>
         </view>
 
         <text class="ins-title">{{item.title}}</text>
@@ -96,7 +98,9 @@
       </view>
 
       <view class="ins-foot">
-        <text>共 {{insights.length}} 条 · 扫描 {{meta.scanned}} 笔记录{{meta.hasBudget ? ' · 已结合预算' : ''}}</text>
+        <!-- ⚠️ 用 windowCount（本期笔数），不是 meta.scanned（3 个自然月的取数条数）：
+             后者会让「近 7 天」显示成「扫描 62 笔」，看着像分析了 30 天 -->
+        <text>共 {{insights.length}} 条 · 近 {{scopeDays}} 天共 {{meta.windowCount}} 笔记录{{meta.hasBudget ? ' · 已结合预算' : ''}}</text>
       </view>
     </view>
 

@@ -158,7 +158,11 @@ Page({
 
       this.setData({
         insights: (result.data.insights || []).map(x => Object.assign({}, x, {
-          levelText: LEVEL_TEXT[x.level] || ''
+          levelText: LEVEL_TEXT[x.level] || '',
+          // 口径标签：云端把「本月 / 上月同期 / 3 个月」算出来的结论标成 scope='month'。
+          // ⚠️ 必须显示出来 —— 选「近 7 天」时用户看到「本月 ¥3955」，没有这行小字
+          //    就会认定范围开关坏了（这正是本轮修的 bug）。
+          scopeTag: x.scope === 'month' ? '按自然月' : ''
         })),
         meta: result.data.meta || null,
         scopeText: scopeLabel(scopeDaysOut),
