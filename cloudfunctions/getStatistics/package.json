@@ -1,6 +1,6 @@
 {
   "name": "getStatistics",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "获取账单统计数据（indexData / stats / bills / profile）",
   "main": "index.js",
   "dependencies": {

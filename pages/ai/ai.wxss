@@ -109,6 +109,12 @@
   text-align: center;
 }
 
+/* 范围说明的第二行（跨月口径与滚动窗口不是一回事） */
+.hero-note-sub {
+  margin-top: 10rpx;
+  font-size: 20rpx;
+}
+
 /* 分析范围切换：放在深色 hero 卡内，用半透明白底分段，选中项实心白 */
 .scope-switch {
   position: relative;
@@ -256,6 +262,12 @@
   padding: 20rpx 22rpx;
   border-radius: var(--r-md);
   background: var(--surface-2);
+}
+
+/* 维度共 13 条（奇数）：最后一张独占一行，
+   否则右边空半格，看起来像少渲染了一张卡片 */
+.dim:last-child:nth-child(odd) {
+  width: 100%;
 }
 
 .dim-title {

@@ -269,7 +269,19 @@ function audit(list, s, tag) {
     put(curAvg)
     put(prevAvg)
     put(Math.abs(curAvg - prevAvg))
+    // ⚠️ 规则是拿**未取整**的日均相减后再 round2，上面那组是"先各自取整再相减"：
+    //    两者可能差 0.01（如 20.67-9.33=11.34 vs (620-280)/30=11.33），
+    //    正好卡在 0.01 容差的边界上，浮点误差会让它变成 0.0100000001 而判失败。
+    //    两个都放进合法集合，才能既不失严、又不误报。
+    const raw = s.total / s.days - s.prev.total / s.prev.days
+    put(round2(raw))
+    put(Math.abs(round2(raw)))
   }
+
+  // ⚠️ 文案里只许出现**摘要里算得出来的数**。
+  //    曾经大额那条写着「单笔超过 ¥500 或月均 20%」，而有效阈值是 ¥960 ——
+  //    ¥500 在摘要里找不到，文案也和实际判定不一致（¥600 并不会被算进去）。
+  //    现在文案直接报有效阈值，这类"文案与判定不符"就没有藏身处了。
 
   const cats = s.categories || []
   for (let i = 0; i < cats.length; i++) put(cats[i].amount)
@@ -302,6 +314,49 @@ function audit(list, s, tag) {
     }
   }
 
+  // 月度视角（跨月对比 / 类目月度变化 / 固定支出）
+  // ⚠️ 同样要把**派生值**放进来：本月日均、上月同期日均、日均差额、类目差额。
+  //    漏掉它们会大面积误报，而误报多了这条审计就没人看了。
+  const mc = s.months && s.months.current
+  const mp = s.months && s.months.prevSame
+  if (mc) { put(mc.total); if (mc.days > 0) put(round2(mc.total / mc.days)) }
+  if (mp) { put(mp.total); if (mp.days > 0) put(round2(mp.total / mp.days)) }
+  if (mc && mp && mc.days > 0 && mp.days > 0) {
+    const curAvg = round2(mc.total / mc.days)
+    const prevAvg = round2(mp.total / mp.days)
+    put(curAvg)
+    put(prevAvg)
+    put(round2(curAvg - prevAvg))
+    put(Math.abs(round2(curAvg - prevAvg)))
+  }
+
+  // 类目月度差额：两张表的每个类目金额，以及任意同类目的差额
+  if (mc && mp) {
+    const curCats = mc.cats || []
+    const prevCats = mp.cats || []
+    curCats.forEach(function (c) { put(c.amount) })
+    prevCats.forEach(function (c) { put(c.amount) })
+    curCats.forEach(function (c) {
+      const p = prevCats.filter(function (x) { return x.id === c.id })[0]
+      const gap = round2(c.amount - (p ? p.amount : 0))
+      put(gap)
+      put(Math.abs(gap))
+    })
+  }
+
+  if (s.months && s.months.recent) {
+    s.months.recent.forEach(function (m) { put(m.total) })
+  }
+  // 固定支出候选：每月金额 + 中位数（结论里报的就是中位数）
+  ;(s.fixedCandidates || []).forEach(function (c) {
+    const amts = c.amounts || []
+    amts.forEach(put)
+    if (amts.length) {
+      const sorted = amts.map(Number).slice().sort(function (x, y) { return x - y })
+      put(round2(sorted[Math.floor(sorted.length / 2)]))
+    }
+  })
+
   // 合法笔数（必须是整数集合，精确匹配）
   const legalCount = new Set()
   const putC = function (v) { if (Number.isInteger(v)) legalCount.add(v) }
@@ -320,6 +375,9 @@ function audit(list, s, tag) {
   putD(s.daysWithoutSpend)
   if (s.weekend) putD(s.weekend.days)
   if (s.weekday) putD(s.weekday.days)
+  // 月度视角的两个分母：本月已过天数 / 上月同期天数
+  if (mc) putD(mc.days)
+  if (mp) putD(mp.days)
   if (s.budget) { putD(s.budget.daysLeft); putD(s.budget.daysTotal); putD(s.budget.daysPassed) }
   // 月光预警里的「本月 X 号」—— 号数是天数的一种，来自预算进度推算
   if (s.budget && s.budget.amount > 0 && s.budget.daysPassed > 0) {
@@ -862,6 +920,214 @@ async function main() {
     t(largeIns.evidence.some(e => e.value === '购物'), '主要类目落在认得出的那个类目上（购物）')
   }
   audit(rLarge.data.insights, rLarge.data.summary, '大额主要类目')
+
+  // ================================================================
+  console.log('\n=== 15) 跨月同期对比：只比"同一天"，不比整月 ===')
+  // ================================================================
+  // ⚠️ 这是本轮最容易被"看起来合理"害到的一条：
+  //    今天 10/22，本月只有 22 天、上月整月 31 天。拿 22 天比 31 天，
+  //    必然得出「本月省了一大截」—— 这个假象在每个月初都成立。
+
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+
+  // 本月 1~22 号：3 笔共 660，日均 30
+  addBill(bjTs(2026, 10, 3, 12, 0), 'expense', 300, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 12, 12, 0), 'expense', 200, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 20, 12, 0), 'expense', 160, 'transport', '交通', '滴滴')
+  // 上月同期 9/1~9/22：3 笔共 220，日均 10
+  addBill(bjTs(2026, 9, 3, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 12, 12, 0), 'expense', 80, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 20, 12, 0), 'expense', 40, 'transport', '交通', '滴滴')
+  // ⚠️ 这笔属于 9 月整月，但**不在**上月同期窗口（9/23 之后）→ 绝不能进上月同期合计
+  addBill(bjTs(2026, 9, 25, 12, 0), 'expense', 900, 'shopping', '购物', '某商城')
+
+  const rMom = await runInsight()
+  const mom = rMom.data.insights.find(x => x.id === 'mom')
+
+  t(mom != null, `本月日均明显高于上月同期 → 出现跨月结论（实际触发：${rMom.data.insights.map(x => x.id).join(',') || '无'}）`)
+  if (mom) {
+    t(mom.level === 'warn', '涨属于「要注意」')
+    t(mom.evidence.some(e => e.label === '本月已过' && e.value === '22 天'),
+      `分母写出来：本月已过 22 天（实际 ${JSON.stringify(mom.evidence.find(e => e.label === '本月已过'))}）`)
+    t(mom.evidence.some(e => e.label === '9月同期' && e.value === '22 天'), '上月同期同为 22 天')
+
+    const prevSameTotal = rMom.data.summary.months.prevSame.total
+    t(prevSameTotal === 220,
+      `上月同期只算 1~22 号（实际 ¥${prevSameTotal}；若把 9/25 那笔也算进来会是 ¥1120）`)
+
+    t(mom.detail.indexOf('总额可以直接比') !== -1, '两段天数一致时才说"总额可以直接比"')
+  }
+  audit(rMom.data.insights, rMom.data.summary, '跨月同期')
+
+  // 月初头几天：样本太薄，不给结论
+  freeze(2026, 10, 3, 10, 0)
+  reset()
+  addBill(bjTs(2026, 10, 1, 12, 0), 'expense', 300, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 2, 12, 0), 'expense', 200, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 3, 12, 0), 'expense', 160, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 1, 12, 0), 'expense', 10, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 2, 12, 0), 'expense', 10, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 3, 12, 0), 'expense', 10, 'food', '餐饮', '某餐厅')
+
+  const rEarly = await runInsight()
+  t(rEarly.data.insights.find(x => x.id === 'mom') == null,
+    `1~4 号样本太薄 → 不给跨月结论（实际 ${rEarly.data.insights.map(x => x.id).join(',') || '无'}）`)
+  audit(rEarly.data.insights, rEarly.data.summary, '月初样本不足')
+
+  // 上月同期一分钱没花 → 不能报"涨了 100%"（除以 0 没有意义）
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+  addBill(bjTs(2026, 10, 3, 12, 0), 'expense', 300, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 12, 12, 0), 'expense', 200, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 20, 12, 0), 'expense', 160, 'food', '餐饮', '某餐厅')
+
+  const rNoPrev = await runInsight()
+  t(rNoPrev.data.insights.find(x => x.id === 'mom') == null,
+    '上月同期没有支出 → 不给跨月结论（不能算成 +∞%）')
+
+  // 3/31 对上 2 月只有 28 天：两段天数不一致，只能比日均
+  freeze(2026, 3, 31, 10, 0)
+  reset()
+  addBill(bjTs(2026, 3, 3, 12, 0), 'expense', 200, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 3, 15, 12, 0), 'expense', 210, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 3, 28, 12, 0), 'expense', 210, 'transport', '交通', '滴滴')
+  addBill(bjTs(2026, 2, 3, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 2, 15, 12, 0), 'expense', 90, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 2, 28, 12, 0), 'expense', 90, 'transport', '交通', '滴滴')
+
+  const rShortFeb = await runInsight()
+  const momFeb = rShortFeb.data.insights.find(x => x.id === 'mom')
+  t(momFeb != null, '3/31 对上 2 月 → 仍然能出跨月结论')
+  if (momFeb) {
+    t(momFeb.evidence.some(e => e.label === '本月已过' && e.value === '31 天'), '本月已过 31 天')
+    t(momFeb.evidence.some(e => e.label === '2月同期' && e.value === '28 天'),
+      `2 月同期只能算到 28 号（实际 ${JSON.stringify(momFeb.evidence.filter(e => /同期$/.test(e.label)))}）`)
+    t(momFeb.detail.indexOf('总额可以直接比') === -1 && momFeb.detail.indexOf('只比日均') !== -1,
+      '天数不一致时明确写"只比日均，不比总额"')
+  }
+  audit(rShortFeb.data.insights, rShortFeb.data.summary, '3/31 对 2 月')
+
+  // ================================================================
+  console.log('\n=== 16) 类目月度变化：说清"多花在哪"，其他桶不算 ===')
+  // ================================================================
+
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+  // 本月：餐饮 400、其他支出 500、教育 60
+  addBill(bjTs(2026, 10, 3, 12, 0), 'expense', 250, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 9, 12, 0), 'expense', 150, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 11, 12, 0), 'expense', 500, '', '其他支出', '未知商户')
+  addBill(bjTs(2026, 10, 18, 12, 0), 'expense', 60, 'education', '教育', '某课程')
+  // 上月同期：餐饮 100、交通 200（本月没有 → 消失）
+  addBill(bjTs(2026, 9, 5, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 15, 12, 0), 'expense', 200, 'transport', '交通', '滴滴')
+
+  const rCatMom = await runInsight()
+  const catMom = rCatMom.data.insights.find(x => x.id === 'catMom')
+
+  t(catMom != null, `类目月度变化要能触发（实际 ${rCatMom.data.insights.map(x => x.id).join(',') || '无'}）`)
+  if (catMom) {
+    t(catMom.title.indexOf('餐饮') !== -1, `选中的是差额最大的"可识别"类目：餐饮（实际标题「${catMom.title}」）`)
+    t(catMom.title.indexOf('其他支出') === -1,
+      '「其他支出」即使差额更大（¥500）也不参与 —— 里面装了什么没人知道')
+    t(catMom.title.indexOf('教育') === -1,
+      '占比不足 5% 的小额类目（教育 ¥60）不单列，避免"从 20 涨到 60"这种噪音')
+    t(catMom.evidence.some(e => e.label === '9月同期 餐饮' && e.value === '¥100.00'), '上月同期金额写出来')
+  }
+  audit(rCatMom.data.insights, rCatMom.data.summary, '类目月度变化')
+
+  // 上期完全没有该类目 → 说"新出现"，不报百分比
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+  addBill(bjTs(2026, 10, 3, 12, 0), 'expense', 300, 'medical', '医疗健康', '某医院')
+  addBill(bjTs(2026, 10, 9, 12, 0), 'expense', 200, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 18, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 5, 12, 0), 'expense', 200, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 15, 12, 0), 'expense', 150, 'transport', '交通', '滴滴')
+  addBill(bjTs(2026, 9, 20, 12, 0), 'expense', 100, 'shopping', '购物', '某商城')
+
+  const rNewCat = await runInsight()
+  const newCat = rNewCat.data.insights.find(x => x.id === 'catMom')
+  t(newCat != null && newCat.title.indexOf('医疗健康') !== -1,
+    `本月新出现的类目也要能说（实际 ${newCat && newCat.title}）`)
+  if (newCat && newCat.title.indexOf('医疗健康') !== -1) {
+    t(newCat.detail.indexOf('同期没有') !== -1, '新出现的类目写"同期没有"，而不是硬报一个百分比')
+  }
+  audit(rNewCat.data.insights, rNewCat.data.summary, '新出现类目')
+
+  // ================================================================
+  console.log('\n=== 17) 固定支出：连续 3 个月、金额稳定、且不是零钱 ===')
+  // ================================================================
+
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+  // 房租：每月 3000，稳定
+  addBill(bjTs(2026, 8, 1, 12, 0), 'expense', 3000, 'housing', '住房', '房东')
+  addBill(bjTs(2026, 9, 1, 12, 0), 'expense', 3000, 'housing', '住房', '房东')
+  addBill(bjTs(2026, 10, 1, 12, 0), 'expense', 3000, 'housing', '住房', '房东')
+  // 某超市：三个月都有，但金额忽高忽低（100 / 900 / 100）→ 不是固定支出
+  addBill(bjTs(2026, 8, 5, 12, 0), 'expense', 100, 'shopping', '购物', '某超市')
+  addBill(bjTs(2026, 9, 5, 12, 0), 'expense', 900, 'shopping', '购物', '某超市')
+  addBill(bjTs(2026, 10, 5, 12, 0), 'expense', 100, 'shopping', '购物', '某超市')
+  // 某订阅：每月 10 元 → 太零碎，不值得占一条结论
+  addBill(bjTs(2026, 8, 9, 12, 0), 'expense', 10, 'entertainment', '娱乐', '某订阅')
+  addBill(bjTs(2026, 9, 9, 12, 0), 'expense', 10, 'entertainment', '娱乐', '某订阅')
+  addBill(bjTs(2026, 10, 9, 12, 0), 'expense', 10, 'entertainment', '娱乐', '某订阅')
+
+  const rFixed = await runInsight()
+  const fixed = rFixed.data.insights.find(x => x.id === 'fixed')
+
+  t(fixed != null, `连续 3 个月金额稳定 → 出现固定支出结论（实际 ${rFixed.data.insights.map(x => x.id).join(',') || '无'}）`)
+  if (fixed) {
+    t(fixed.title.indexOf('房东') !== -1, `选中的是金额最大的稳定商户（实际「${fixed.title}」）`)
+    t(fixed.title.indexOf('某超市') === -1, '金额忽高忽低（100/900/100）不算固定支出')
+    t(fixed.title.indexOf('某订阅') === -1, '每月 ¥10 的零碎订阅不单列')
+    t(fixed.detail.indexOf('8月 ¥3000.00、9月 ¥3000.00、10月 ¥3000.00') !== -1,
+      `三个月金额与月份标签一一对应（实际「${fixed.detail}」）`)
+    t(fixed.evidence.some(e => e.label === '占本月支出'), '给出占本月支出的比例')
+  }
+  audit(rFixed.data.insights, rFixed.data.summary, '固定支出')
+
+  // 只有两个月 → 不算固定支出（"最近买了两次"说明不了每月都会扣）
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+  addBill(bjTs(2026, 8, 10, 12, 0), 'expense', 500, 'education', '教育', '某健身房')
+  addBill(bjTs(2026, 9, 10, 12, 0), 'expense', 500, 'education', '教育', '某健身房')
+  addBill(bjTs(2026, 10, 12, 12, 0), 'expense', 60, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 15, 12, 0), 'expense', 40, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 18, 12, 0), 'expense', 30, 'transport', '交通', '滴滴')
+
+  const rTwoMonths = await runInsight()
+  t(rTwoMonths.data.insights.find(x => x.id === 'fixed') == null,
+    '只有两个月的记录 → 不给固定支出结论')
+
+  // ================================================================
+  console.log('\n=== 18) 回归：取数范围扩大后，"上期"不能被更早的记录污染 ===')
+  // ================================================================
+  // ⚠️ 月度视角需要往前取 3 个自然月，取数起点比"上期"更早。
+  //    老写法"不在本期就算上期"会把 3 个月前的记录一起加进 prevTotal，
+  //    日均涨跌的对照值凭空变大 —— 不报错，只表现为"结论比实际温和"。
+
+  freeze(2026, 10, 22, 10, 0)
+  reset()
+  // 本期（近 30 天）：3 笔共 300
+  addBill(bjTs(2026, 10, 5, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 12, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 10, 19, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  // 上期（8/24~9/22）：3 笔共 300 → 与本期持平，不该报涨跌
+  addBill(bjTs(2026, 9, 1, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 10, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  addBill(bjTs(2026, 9, 20, 12, 0), 'expense', 100, 'food', '餐饮', '某餐厅')
+  // 8 月初的一笔大额：在取数范围内（供固定支出用），但**不属于**上期
+  addBill(bjTs(2026, 8, 3, 12, 0), 'expense', 5000, 'housing', '住房', '房东')
+
+  const rScope = await runInsight()
+  t(rScope.data.summary.prev.total === 300,
+    `上期合计只算上期窗口（¥300，实际 ¥${rScope.data.summary.prev.total}）—— 含 8 月那笔会变成 ¥5300`)
+  t(rScope.data.insights.find(x => x.id === 'trend') == null,
+    `本期与上期日均持平 → 不报涨跌（实际 ${rScope.data.insights.map(x => x.id).join(',') || '无'}）`)
+  audit(rScope.data.insights, rScope.data.summary, '取数范围回归')
 
   Date.now = REAL_NOW
 

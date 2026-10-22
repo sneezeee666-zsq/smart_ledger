@@ -33,11 +33,16 @@ const LEVEL_TEXT = {
 
 // 会分析什么：与云端 insight.js 的规则一一对应。
 // ⚠️ 这只是**展示**，阈值全在云端。这里抄一份阈值过来就是漂移的起点。
+// ⚠️ 描述里写清"和谁比"：rolling（滚动 N 天）与 natural month（自然月）是两套窗口，
+//    不写清的话用户会把「本月比上月多花」当成「近 30 天比前 30 天多花」。
 const DIMENSIONS = [
   { key: 'budget', title: '预算进度', desc: '按当前花法本月会不会超、还剩多少' },
   { key: 'moonlight', title: '月光预警', desc: '花得比时间快，几号会花光预算' },
-  { key: 'trend', title: '日均涨跌', desc: '平均每天比上个周期多花还是少花' },
+  { key: 'mom', title: '跨月对比', desc: '本月与上月同期比，日均多了还是少了' },
+  { key: 'trend', title: '日均涨跌', desc: '最近这段与紧邻的前一段比（等长窗口）' },
   { key: 'structure', title: '消费结构', desc: '钱主要压在哪个类目上' },
+  { key: 'catMom', title: '类目变化', desc: '哪个类目把本月的差距拉开的' },
+  { key: 'fixed', title: '固定支出', desc: '每月都会扣的那几笔，加起来多少' },
   { key: 'night', title: '深夜消费', desc: '半夜的冲动消费占了多大比例' },
   { key: 'large', title: '大额支出', desc: '单笔明显偏高、集中在哪一类' },
   { key: 'small', title: '小额高频', desc: '单笔不大但次数多的那部分' },

@@ -612,6 +612,68 @@ async function buildQuickPicks(openid, forceAuto) {
   return { code: 0, data: { picks, source: 'auto' }, scanned: records.length }
 }
 
+/**
+ * 某年某月有多少天（month 为 0~11）。
+ * 用 `Date.UTC(y, m+1, 0)` 让引擎自己处理闰年与大小月 —— 手写 28/29/30/31 的查表迟早写错，
+ * 而且错了只在 2 月 29 日那天暴露。
+ */
+function daysInMonth(year, month) {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+}
+
+/**
+ * 月度视角需要的时间点（全部按 UTC+8）。
+ *
+ * 为什么「跨月对比」必须用**同期**而不是整月？
+ *   今天 10 月 22 号，"本月"只有 22 天，而上个月是完整的 31 天。
+ *   拿 22 天和 31 天比总额，必然得出「本月省了一大截」—— 这个结论在每月 1 号都成立，
+ *   是纯粹的假象。用户会因此以为消费习惯变好了，下个月才发现完全不是。
+ *   所以上月的截止点取「与今天同一个日号」：
+ *     今天 10/22 → 上月同期是 9/1 ~ 9/22
+ *     今天 3/31  → 2 月只有 28 天 → 取 2/1 ~ 2/28（天数不同，因此比「日均」而不是总额）
+ *
+ * @returns {{curMonthStart:number, prevMonthStart:number, prevSameEnd:number,
+ *            windowStart:number, prevYear:number, prevMonth:number, sameDay:number,
+ *            months:Array<{year:number, month:number, start:number, end:number}>}}
+ *          months 为最近 3 个自然月（上上月 → 本月），本月 end 为今天 23:59:59.999
+ */
+function monthWindows(nowTs) {
+  const p = bjParts(nowTs)
+
+  const curMonthStart = bjTime(p.year, p.month, 1)
+
+  // 上一个月（1 月的上一个月是去年 12 月）
+  const prevYear = p.month === 0 ? p.year - 1 : p.year
+  const prevMonth = p.month === 0 ? 11 : p.month - 1
+
+  const prevDaysTotal = daysInMonth(prevYear, prevMonth)
+  // 上月可能没有「今天这个日号」（3/31 对上 2 月）：退到上月最后一天
+  const sameDay = Math.min(p.date, prevDaysTotal)
+  const prevSameEnd = bjTime(prevYear, prevMonth, sameDay, 23, 59, 59, 999)
+
+  // 上上个月（最近 3 个自然月的起点）
+  const y2 = prevMonth === 0 ? prevYear - 1 : prevYear
+  const m2 = prevMonth === 0 ? 11 : prevMonth - 1
+  const windowStart = bjTime(y2, m2, 1)
+
+  const months = [
+    { year: y2, month: m2, start: windowStart, end: bjTime(y2, m2, daysInMonth(y2, m2), 23, 59, 59, 999) },
+    { year: prevYear, month: prevMonth, start: bjTime(prevYear, prevMonth, 1), end: bjTime(prevYear, prevMonth, prevDaysTotal, 23, 59, 59, 999) },
+    { year: p.year, month: p.month, start: curMonthStart, end: endOfDay(nowTs) }
+  ]
+
+  return {
+    curMonthStart: curMonthStart,
+    prevMonthStart: bjTime(prevYear, prevMonth, 1),
+    prevSameEnd: prevSameEnd,
+    windowStart: windowStart,
+    prevYear: prevYear,
+    prevMonth: prevMonth,
+    sameDay: sameDay,
+    months: months
+  }
+}
+
 async function buildInsightData(openid, requestedDays) {
   const days = INSIGHT_SCOPES.indexOf(Number(requestedDays)) !== -1 ? Number(requestedDays) : INSIGHT_DAYS
   const nowTs = Date.now()
@@ -627,12 +689,13 @@ async function buildInsightData(openid, requestedDays) {
   const prevStart = curStart - days * DAY_MS
   const prevEnd = curStart - 1
 
-  // ⚠️ 取数起点用 prevStart 就够，它**一定**早于「本月 1 号」：
-  //    今天 10/31 时本期从 10/2 起、上期从 9/2 起，prevStart ≤ monthStart 恒成立
-  //    （今天越靠近月初，prevStart 落得越早）。
-  //    所以「本月 1 号那笔账单」必然在取数范围内 —— 而预算是按**本月**算的，
-  //    少取这一段会让预算进度平白少算一笔，且没有任何报错。
-  const from = prevStart
+  // ⚠️ 取数起点必须同时覆盖两件事：
+  //    ① 上一个等长周期（日均涨跌要用 prevStart）
+  //    ② 最近 3 个自然月的 1 号（跨月对比与固定支出识别要用）
+  //    取两者的更早者。只取 prevStart 时「上月同期」可能整段在取数范围外 ——
+  //    那时跨月结论会静默消失（不报错，只是永远不出现），比算错更难发现。
+  const mw = monthWindows(nowTs)
+  const from = Math.min(prevStart, mw.windowStart)
 
   const [records, budget] = await Promise.all([
     fetchAll(
@@ -681,8 +744,14 @@ async function buildInsightData(openid, requestedDays) {
 
     const inCur = t >= curStart && t <= curEnd
     if (!inCur) {
-      prevTotal += amt
-      prevCount++
+      // ⚠️ 必须显式判「上一期」的窗口，不能写成"不在本期就算上期"：
+      //    取数起点已经扩到 3 个月前的 1 号（月度视角要用），
+      //    用老写法会把更早的记录一起算进 prevTotal —— 日均涨跌的对照值凭空变大，
+      //    而且不报错，只表现为"结论说得比实际温和"。
+      if (t >= prevStart && t <= prevEnd) {
+        prevTotal += amt
+        prevCount++
+      }
       return
     }
 
@@ -784,6 +853,111 @@ async function buildInsightData(openid, requestedDays) {
     lastExpenseDate = `${lp.month + 1}月${lp.date}日`
   }
 
+  // ---- 月度视角：最近 3 个自然月，按月分桶 ----
+  //
+  // 为什么单独再扫一遍，而不是塞进上面那个 forEach？
+  //   上面那个循环按「本期 / 上期」两个**滚动窗口**分类，月度视角按**自然月**切。
+  //   两套切法在同一条记录上会互相干扰（一笔 9/28 的账单既可能在"上期"里，
+  //   又属于 9 月整月），混在一起写必然算错一处。分开扫，各自边界清楚。
+  const monthStat = mw.months.map(function (w) {
+    return {
+      label: (w.month + 1) + '月',
+      year: w.year,
+      month: w.month,
+      start: w.start,
+      end: w.end,
+      total: 0,
+      count: 0,
+      cats: {},
+      merchants: {}
+    }
+  })
+
+  // 本月「至今」的天数（今天几号就是几天）/ 上月「同期」的天数（3/31 对上 2 月是 28 或 29）
+  const curMonthDays = bjParts(nowTs).date
+  const prevSameDays = mw.sameDay
+
+  // 上月同期：上月 1 号 ~ 上月与今天同一个日号（含当天）
+  const prevSame = { total: 0, count: 0, cats: {} }
+
+  records.forEach(function (r) {
+    if (r.type !== 'expense') return
+
+    const amt = Number(r.amount) || 0
+    const t = r.createTime || 0
+
+    const cid = r.categoryId || 'other_expense'
+    const meta = CATEGORY_META[cid] || {}
+    const catName = meta.name || r.category || '其他支出'
+    const title = (r.title || '').trim() || '未标注商户'
+
+    // 上月同期（供跨月对比 / 类目月度变化使用）
+    if (t >= mw.prevMonthStart && t <= mw.prevSameEnd) {
+      prevSame.total += amt
+      prevSame.count++
+      if (!prevSame.cats[cid]) {
+        prevSame.cats[cid] = { id: cid, name: catName, amount: 0, count: 0 }
+      }
+      prevSame.cats[cid].amount += amt
+      prevSame.cats[cid].count++
+    }
+
+    // 三个自然月的整月桶（供固定支出识别）
+    for (let i = 0; i < monthStat.length; i++) {
+      const m = monthStat[i]
+      if (t < m.start || t > m.end) continue
+
+      m.total += amt
+      m.count++
+
+      if (!m.cats[cid]) m.cats[cid] = { id: cid, name: catName, amount: 0, count: 0 }
+      m.cats[cid].amount += amt
+      m.cats[cid].count++
+
+      if (!m.merchants[title]) m.merchants[title] = { title: title, amount: 0, count: 0 }
+      m.merchants[title].amount += amt
+      m.merchants[title].count++
+
+      break
+    }
+  })
+
+  function catsOf(map) {
+    return Object.keys(map).map(function (k) {
+      return {
+        id: map[k].id,
+        name: map[k].name,
+        amount: round2(map[k].amount),
+        count: map[k].count
+      }
+    }).sort(byAmount)
+  }
+
+  // 固定支出识别的候选：最近 3 个月**都有**记录的商户。
+  // ⚠️ 这里只做「结构性取交集」，不判"金额像不像"：
+  //    相似度是要阈值判断的规则，归 lib/insight.js 管 —— 那里能离线单测边界，
+  //    放在云函数里就只能靠眼睛看。
+  const fixedCandidates = []
+  ;(function () {
+    const m0 = monthStat[0].merchants
+    const m1 = monthStat[1].merchants
+    const m2 = monthStat[2].merchants
+
+    Object.keys(m2).forEach(function (title) {
+      if (!m0[title] || !m1[title]) return
+      fixedCandidates.push({
+        title: title,
+        amounts: [round2(m0[title].amount), round2(m1[title].amount), round2(m2[title].amount)],
+        counts: [m0[title].count, m1[title].count, m2[title].count]
+      })
+    })
+
+    fixedCandidates.sort(function (a, b) { return b.amounts[1] - a.amounts[1] })
+  })()
+
+  const curMonthBucket = monthStat[2]
+  const prevMonthBucket = monthStat[1]
+
   const summary = {
     days: days,
     compareDays: days,
@@ -806,7 +980,43 @@ async function buildInsightData(openid, requestedDays) {
     lastExpenseDate: lastExpenseDate,
     // ⚠️ 复用 composeBudget，不重算 —— 与首页/预算页同一套口径与阈值。
     //    这里重写一遍的话，就会出现「首页说没超、AI 页说超了」。
-    budget: budget ? composeBudget(budget, monthExpense, nowTs) : null
+    budget: budget ? composeBudget(budget, monthExpense, nowTs) : null,
+
+    // ---- 月度视角（跨月对比 / 类目月度变化 / 固定支出）----
+    // ⚠️ 这里的 total 与上面的 total **不是一回事**：上面是「近 N 天滚动窗口」，
+    //    这里是「自然月至今」。两个口径都保留，但谁也不能拿去冒充另一个 ——
+    //    文案里必须写「本月」而不是「近 N 天」，否则用户会拿两个数字互相核对，然后发现差一截。
+    months: {
+      current: {
+        label: curMonthBucket.label,
+        // 分母：本月已过天数（今天几号就是几天）
+        days: curMonthDays,
+        total: round2(curMonthBucket.total),
+        count: curMonthBucket.count,
+        cats: catsOf(curMonthBucket.cats)
+      },
+      prevSame: {
+        label: prevMonthBucket.label,
+        // 分母：上月同期的天数（与本月已过天数相等，唯 3/31 对上 2 月时为 28/29）
+        days: prevSameDays,
+        total: round2(prevSame.total),
+        count: prevSame.count,
+        cats: catsOf(prevSame.cats)
+      },
+      // 最近 3 个自然月的整月合计（上上月 → 本月）
+      // ⚠️ 这里刻意**不给 days**：本月只有「至今」的天数（见 current.days），
+      //    若这里再塞一个整月天数，同一份摘要里同一个月就有了两个不同的 days，迟早被用错。
+      recent: monthStat.map(function (m) {
+        return {
+          label: m.label,
+          year: m.year,
+          month: m.month + 1,
+          total: round2(m.total),
+          count: m.count
+        }
+      })
+    },
+    fixedCandidates: fixedCandidates
   }
 
   return {

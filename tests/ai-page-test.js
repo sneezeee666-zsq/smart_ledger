@@ -133,7 +133,7 @@ function loadAiPage() {
   }
 
   // ================================================================
-  console.log('\n=== 4) 深度思考模拟本身：文案与等待 ===')
+  console.log('\n=== 4) 分析失败：与「没有结论」分开表达 ===')
   // ================================================================
   {
     const page = loadAiPage()
@@ -156,6 +156,56 @@ function loadAiPage() {
     t(page.data.loadFailed === true, '云函数失败 → loadFailed = true（与"没有结论"分开表达）')
     t(page.data.insights.length === 0, '失败时清空旧结论而不是留着上一份')
     t(toastTitle === '分析失败，请重试', '失败提示可操作（实际："' + toastTitle + '"）')
+  }
+
+  // ================================================================
+  console.log('\n=== 5) 「会分析什么」必须与云端规则一一对上 ===')
+  // ================================================================
+  // ⚠️ 这是新增规则时最容易漏的一步：云端默默多了一条结论，页面的「会分析什么」
+  //    却没提 —— 用户看到一张没在清单里的卡片，会怀疑是随机生成的。
+  //    这里直接把 insight.js 的 PRIORITY 键（= 全部规则 id）拿去和页面 DIMENSIONS 对账。
+  {
+    const fs = require('fs')
+    const INSIGHT = path.join(__dirname, '..', 'cloudfunctions/getStatistics/lib/insight.js')
+    const src = fs.readFileSync(INSIGHT, 'utf8')
+
+    const block = src.match(/const PRIORITY = \{([\s\S]*?)\n\}/)
+    const ids = block
+      ? Array.from(block[1].matchAll(/^\s*(\w+):\s*\d+/gm)).map(m => m[1])
+      : []
+
+    t(ids.length >= 10, `能从 PRIORITY 读出全部规则 id（读到 ${ids.length} 个）`)
+
+    // 规则 id → 页面维度 key 的映射。
+    // baseline 是「概况」，每条分析都带一个底数，不算一个可勾选的维度 —— 豁免。
+    const DIM_OF = {
+      budget: 'budget', moonlight: 'moonlight', mom: 'mom', trend: 'trend',
+      category: 'structure', catMom: 'catMom', fixed: 'fixed', night: 'night',
+      large: 'large', smallFreq: 'small', merchant: 'merchant', weekend: 'weekend',
+      noSpend: 'habit'
+    }
+
+    const page = loadAiPage()
+    const dimKeys = page.data.dimensions.map(d => d.key)
+    const missing = ids.filter(id => id !== 'baseline' && dimKeys.indexOf(DIM_OF[id]) === -1)
+
+    t(missing.length === 0,
+      `每条规则都能在「会分析什么」里找到对应条目（漏掉：${missing.join(',') || '无'}）`)
+
+    const orphan = dimKeys.filter(k => Object.keys(DIM_OF).every(id => DIM_OF[id] !== k))
+    t(orphan.length === 0, `页面没有讲过时（云端已不存在的维度：${orphan.join(',') || '无'}）`)
+
+    t(page.data.dimensions.length === 13, `维度共 13 条（实际 ${page.data.dimensions.length}）`)
+    t(page.data.dimensions.every(d => d.title && d.desc),
+      '每条维度都有标题与说明（空说明等于让用户猜）')
+
+    // 月度视角三条必须写明「和谁比」，否则用户会把自然月和滚动窗口混起来
+    const momDim = page.data.dimensions.find(d => d.key === 'mom')
+    const catMomDim = page.data.dimensions.find(d => d.key === 'catMom')
+    const fixedDim = page.data.dimensions.find(d => d.key === 'fixed')
+    t(momDim && momDim.desc.indexOf('上月') !== -1, '「跨月对比」的说明里点明与上月同期比')
+    t(catMomDim && catMomDim.desc.indexOf('类目') !== -1, '「类目变化」的说明里点明是类目层面')
+    t(fixedDim && fixedDim.desc.indexOf('每月') !== -1, '「固定支出」的说明里点明是每月都发生的')
   }
 
   console.log('\n' + (fail ? '❌ ' + fail + ' 项未通过' : '✅ 全部通过'))
