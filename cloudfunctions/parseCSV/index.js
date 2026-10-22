@@ -59,7 +59,7 @@ exports.main = async (event, context) => {
     const t = b.type === 'income' ? 'income' : 'expense'
     return {
       code: 0,
-      category: smartClassify(b.title || '', b.product || '', '', t)
+      category: smartClassify(b.title || '', b.product || '', '', t, b.tradeType)
     }
   }
 
@@ -428,7 +428,7 @@ async function addManualBill(openid, input, force) {
     }
 
     // ---------- 3) 智能分类（与导入共用规则） ----------
-    const catInfo = smartClassify(title, product, '', type)
+    const catInfo = smartClassify(title, product, '', type, input.tradeType)
 
     // ---------- 4) 组装文档，字段与 parseExcel/parseCSV 的产出保持一致 ----------
     const now = Date.now()
@@ -531,7 +531,7 @@ async function updateManualBill(openid, id, input, force) {
     }
 
     // ---------- 3) 重新识别分类 ----------
-    const catInfo = smartClassify(v.title, v.product, '', v.type)
+    const catInfo = smartClassify(v.title, v.product, '', v.type, input.tradeType)
 
     // ---------- 4) 更新（条件里既有 _id 也有 _openid） ----------
     const patch = {
@@ -758,7 +758,7 @@ function extractBill(values, map) {
   const title = rawTitle || rawProduct || '未知'
 
   // 智能分类
-  const catInfo = smartClassify(title, rawProduct, rawCategory, type)
+  const catInfo = smartClassify(title, rawProduct, rawCategory, type, values[map.tradeType])
 
   return {
     time: formatTime(timestamp),
@@ -962,27 +962,59 @@ function formatFullTime(ts) {
 /**
  * 智能分类 - 基于关键词匹配
  *
- * 两条约定：
+ * 三条约定：
  *  1. 【收支必须隔离】规则用 kind 标出归属，只和当前 type 的规则比对。
  *     否则收入记录会被支出规则抢先命中：微信的退款单「商品」常常照抄原始商户名
  *     （例如「美团外卖订单退款」），'外卖' 先命中餐饮，一笔收入就被贴上支出分类。
  *  2. 【顺序即优先级】数组从上到下，命中即返回，所以宽词要放在窄词后面
  *     （例如 '退款' 若与 '外卖' 同属支出侧，就必须让更具体的规则先匹配）。
+ *  3. 【资金往来不是消费】转账 / 红包是钱在挪位置，不是买到了什么，
+ *     单独归「转账往来」。**这条必须用交易类型判，不能靠商户名猜** ——
+ *     「妈」「媳妇儿」「312 (MavR1ck)」这类名字永远猜不出行业。
+ *     2026-10 用一份真实微信账单实测：174 笔支出里 96 笔 / ¥2006.78（47.2%）
+ *     落进「其他支出」，其中转账与红包是最大的一块。
+ *
+ * ⚠️ 关键词只写**品类词**与全国性连锁品牌，不要为某一份账单塞单店名：
+ *    单店名既覆盖不了别的用户，也等于把这份文件变成某个人的账本。
+ *    实测里「兰花飘香」「包琪正丨浦口店」这类小微摊贩仍留在「其他支出」——
+ *    这是对的：看不出行业就老实说不知道，硬猜会把早饭记成宠物用品。
  *
  * 颜色取自与 getStatistics 的 CATEGORY_META 相同的色板（两处需保持一致）：
  * 旧色板里的 #FFEAA7 / #F7DC6F / #98D8C8 这类浅色在白底卡片上几乎看不清。
  */
-function smartClassify(title, product, originalCat, type) {
+function smartClassify(title, product, originalCat, type, tradeType) {
   const text = (title + ' ' + product + ' ' + originalCat).toLowerCase()
   const want = type === 'income' ? 'income' : 'expense'
+  // 微信账单「交易类型」列：转账 / 微信红包（群红包）/ 扫二维码付款 / 商户消费 …
+  const tt = String(tradeType || '').toLowerCase()
+
+  // ===== 零阶：明确的资金往来，它不是消费 =====
+  // ⚠️ 见上方约定 ③。用**交易类型**这条确定性信号，而不是靠商户名猜：
+  //    「妈」「媳妇儿」「312 (MavR1ck)」这类名字永远猜不出是什么行业，
+  //    猜错的代价是被记成某个消费类目，比留在「其他」更糟。
+  // ⚠️ 必须排除退款：退款单的交易类型写作「转账-退款」，也含「转账」，
+  //    但那是冲正，不是把钱转给谁。
+  if (want === 'expense' && /转账|红包/.test(tt) && tt.indexOf('退款') === -1) {
+    return { id: 'transfer', name: '转账往来', icon: '💸', color: '#64748B' }
+  }
 
   const rules = [
     // ===== 支出分类 =====
-    { kind:'expense', kw: ['外卖','美团','饿了么','快餐店','小吃','食堂','餐饮','美食','饭','餐','咖啡','星巴克','奶茶','喜茶','肯德基','麦当劳','必胜客','瑞幸','奈雪','霸王茶姬','库迪','面包','蛋糕','甜点','零食','饮料','水果','超市买菜','生鲜'], id:'food', name:'餐饮', icon:'🍜', color:'#F97316' },
-    { kind:'expense', kw: ['地铁','公交','打车','滴滴','出行','加油','停车','高速','火车','飞机','携程','车费','神州','高德','哈啰','嘀嗒','顺风车','共享单车','哈啰单车','美团单车','公交车','出租车','网约车','客运','机票','火车票','动车','高铁','泊车','违章','驾照','加油卡','ETC'], id:'transport', name:'交通', icon:'🚗', color:'#0EA5E9' },
-    { kind:'expense', kw: ['淘宝','京东','拼多多','购物','超市','便利店','商场','天猫','亚马逊','抖音小店','唯品会','苏宁','盒马','永辉','大润发','沃尔玛','7-11','全家','罗森','优衣库','ZARA','HM','服饰','服装','鞋帽','化妆品','护肤品','香水','箱包','眼镜','首饰','饰品'], id:'shopping', name:'购物', icon:'🛒', color:'#8B5CF6' },
-    { kind:'expense', kw: ['游戏','视频','音乐','会员','电影','娱乐','直播','打赏','腾讯视频','爱奇艺','优酷','bilibili','B站','b站','快手','抖音','芒果TV','Spotify','QQ音乐','网易云音乐','酷狗','唱吧','斗鱼','虎牙','Steam','游戏充值','皮肤','点券'], id:'entertainment', name:'娱乐', icon:'🎮', color:'#EC4899' },
-    { kind:'expense', kw: ['房租','房贷','物业','水电','燃气','宽带','取暖','住房','租房','水费','电费','燃气费','物业费','暖气','维修','装修','家具','家电','家洁','保洁'], id:'housing', name:'住房', icon:'🏠', color:'#F59E0B' },
+    // 转账往来：交易类型缺失时（手动记账）靠关键词兜底
+    { kind:'expense', kw: ['转账','红包','代付','信用卡还款','花呗还款','借款','还款'], id:'transfer', name:'转账往来', icon:'💸', color:'#64748B' },
+    // 订阅/软件：App Store / iCloud / API / 云服务这类按月的数字服务单独成一类，
+    // 目的是让「每月固定扣的那几笔」在统计里看得见（固定支出识别也依赖它）。
+    // ⚠️ 这里**不放** Steam / 蒸汽平台：买断一款游戏属于娱乐，不是订阅。
+    { kind:'expense', kw: ['apple.com','itunes','app store','icloud','google play','deepseek','api服务','openai','chatgpt','claude','github','notion','figma','adobe','阿里云','腾讯云','云服务','服务器','域名'], id:'subscription', name:'订阅/软件', icon:'🧩', color:'#7C3AED' },
+    // ⚠️ 娱乐必须排在餐饮之前：美团/饿了么/抖音这些是**渠道**不是品类，
+    //    商品名里常带「美团App」（如「泰谷里·影院足道·汤泉SPA-美团App-26…」），
+    //    餐饮规则里有「美团」，排在前面就会把一次足道记成一顿饭。
+    //    行业词（ktv/足道/汤泉/景区）比平台名更具体，所以让它先匹配。
+    { kind:'expense', kw: ['游戏','视频','音乐','会员','电影','娱乐','直播','打赏','腾讯视频','爱奇艺','优酷','bilibili','B站','b站','快手','抖音','芒果TV','Spotify','QQ音乐','网易云音乐','酷狗','唱吧','斗鱼','虎牙','Steam','蒸汽平台','valve','游戏充值','皮肤','点券','ktv','汤泉','足道','温泉','景区','公园','登山','露营','户外','彩票','福彩','台球','桌游','密室','剧本杀','网咖','电竞','旅游','旅行','门票','演出','展览','博物馆'], id:'entertainment', name:'娱乐', icon:'🎮', color:'#EC4899' },
+    { kind:'expense', kw: ['外卖','美团','饿了么','快餐店','小吃','食堂','餐饮','美食','饭','餐','咖啡','星巴克','奶茶','喜茶','肯德基','麦当劳','必胜客','瑞幸','奈雪','霸王茶姬','库迪','面包','蛋糕','甜点','零食','饮料','水果','超市买菜','生鲜','拉面','面馆','米线','米粉','麻辣烫','香锅','烧烤','火锅','排档','包子','鲜包','早点','早餐','炸鸡','鸡腿','卤味','熟食','砂锅','luckin','卡旺卡','蜜雪冰城','古茗','茶百道'], id:'food', name:'餐饮', icon:'🍜', color:'#F97316' },
+    { kind:'expense', kw: ['地铁','公交','打车','滴滴','出行','加油','停车','高速','火车','飞机','携程','车费','神州','高德','哈啰','嘀嗒','顺风车','共享单车','哈啰单车','美团单车','公交车','出租车','网约车','客运','机票','火车票','动车','高铁','泊车','违章','驾照','加油卡','ETC','车票','单车','骑行','bus-ticket','班车','乘车码','交通卡','过路费','洗车'], id:'transport', name:'交通', icon:'🚗', color:'#0EA5E9' },
+    { kind:'expense', kw: ['淘宝','京东','拼多多','购物','超市','便利店','商场','天猫','亚马逊','抖音小店','唯品会','苏宁','盒马','永辉','大润发','沃尔玛','7-11','全家','罗森','优衣库','ZARA','HM','服饰','服装','鞋帽','化妆品','护肤品','香水','箱包','眼镜','首饰','饰品','便利蜂','十足','芙蓉兴盛','小卖部','百货','日用品','美宜佳','名创优品'], id:'shopping', name:'购物', icon:'🛒', color:'#8B5CF6' },
+    { kind:'expense', kw: ['房租','房贷','物业','水电','燃气','宽带','取暖','住房','租房','水费','电费','燃气费','物业费','暖气','维修','装修','家具','家电','家洁','保洁','国家电网','电力','供电','生活缴费','水务','自来水'], id:'housing', name:'住房', icon:'🏠', color:'#F59E0B' },
     { kind:'expense', kw: ['医院','药店','看病','体检','医疗','药品','牙科','眼科','体检中心','药房','挂号','疫苗','保健品','按摩','推拿','美容','理发','洗发','护肤'], id:'medical', name:'医疗健康', icon:'💊', color:'#14B8A6' },
     { kind:'expense', kw: ['教育','培训','课程','书籍','学费','辅导','考试','学习','网课','知识付费','得到','知乎','文具','书店','图书馆','英语','语言','考证','资格','学历','慕课','培训班','辅导班','幼儿园','托儿所'], id:'education', name:'教育', icon:'📚', color:'#6366F1' },
     { kind:'expense', kw: ['话费','流量','手机','联通','电信','移动','wifi','充话费','宽带费','5G','套餐','SIM卡'], id:'communication', name:'通讯', icon:'📱', color:'#06B6D4' },
@@ -992,8 +1024,10 @@ function smartClassify(title, product, originalCat, type) {
     { kind:'income', kw: ['奖金','绩效奖','年终奖','提成','项目奖金','季度奖','月度奖','全勤奖'], id:'bonus', name:'奖金', icon:'🎁', color:'#F97316' },
     { kind:'income', kw: ['理财','利息','收益','分红','基金','股票','投资回报','定投','理财通','余额宝','零钱通','债券','黄金','期货','期权','股息','租金'], id:'investment', name:'理财收益', icon:'📈', color:'#0EA5E9' },
     { kind:'income', kw: ['兼职','副业','外快','稿费','接单','私活','外包','日结'], id:'parttime', name:'兼职', icon:'💼', color:'#14B8A6' },
-    { kind:'income', kw: ['红包','微信红包','转账','收款','群红包'], id:'red_packet', name:'红包/转账', icon:'🧧', color:'#EC4899' },
-    { kind:'income', kw: ['退款','退货退款','取消订单退款','退款到账'], id:'refund', name:'退款', icon:'↩️', color:'#14B8A6' }
+    // ⚠️ 退款必须排在「红包/转账」之前：退款单的商品常常写作「转账-退款」「退款-转账」，
+    //    排在后面就会被别的规则抢先命中，一笔冲正被记成"收到一笔转账"
+    { kind:'income', kw: ['退款','退货退款','取消订单退款','退款到账'], id:'refund', name:'退款', icon:'↩️', color:'#14B8A6' },
+    { kind:'income', kw: ['红包','微信红包','转账','收款','群红包'], id:'red_packet', name:'红包/转账', icon:'🧧', color:'#EC4899' }
   ]
 
   for (const rule of rules) {

@@ -42,6 +42,11 @@ const CATEGORY_META = {
   medical: { name: '医疗健康', icon: '💊', color: '#14B8A6' },
   education: { name: '教育', icon: '📚', color: '#6366F1' },
   communication: { name: '通讯', icon: '📱', color: '#06B6D4' },
+  // 转账往来：钱在挪位置（给人 / 红包 / 还款），不是买到了什么。
+  // ⚠️ 与收入侧的 red_packet（红包/转账）是同一个概念的两个方向，id 故意分开：
+  //    收支两侧的分类不能共用一个 id，否则统计按方向拆开时会撞车。
+  transfer: { name: '转账往来', icon: '💸', color: '#64748B' },
+  subscription: { name: '订阅/软件', icon: '🧩', color: '#7C3AED' },
   salary: { name: '工资', icon: '💰', color: '#E5484D' },
   bonus: { name: '奖金', icon: '🎁', color: '#F97316' },
   investment: { name: '理财收益', icon: '📈', color: '#0EA5E9' },

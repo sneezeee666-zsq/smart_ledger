@@ -155,9 +155,11 @@ async function testClassify() {
 
   // 所有收入分类 id 都不能出现在支出结果里，反之亦然
   const INCOME_IDS = ['salary', 'bonus', 'investment', 'parttime', 'red_packet', 'refund', 'other_income']
-  const EXPENSE_IDS = ['food', 'transport', 'shopping', 'entertainment', 'housing', 'medical', 'education', 'communication', 'other_expense']
+  const EXPENSE_IDS = ['food', 'transport', 'shopping', 'entertainment', 'housing', 'medical', 'education',
+    'communication', 'transfer', 'subscription', 'other_expense']
   const probeTitles = ['美团 外卖', '滴滴出行', '淘宝 购物', '腾讯视频 会员', '房租 水电', '医院 药品',
-    '书店 教材', '话费充值', '工资', '年终奖', '余额宝 收益', '微信红包', '退款', '张三']
+    '书店 教材', '话费充值', '工资', '年终奖', '余额宝 收益', '微信红包', '退款', '张三',
+    '微信转账', 'Apple 订阅', 'Steam 游戏']
   let cross = []
   for (const tt of probeTitles) {
     const inc = await call({ action: 'classify', bill: { title: tt, product: '', type: 'income' } })
@@ -339,6 +341,82 @@ async function testIntegration() {
   t(bp.data.bills.some(b => b.title === '美团外卖' && b.category === '餐饮'), '手动记录的分类正确落在列表里')
 }
 
+// ==================== 5) 真实账单语料 ====================
+//
+// ⚠️ 用例来自一份真实的微信支付账单（2026-09-15 ~ 10-15，174 笔支出），
+//    只抽了原先落进「其他支出」的那些行，**商户名原样保留**。
+//    这批名字是分类器最该扛住的东西：长单号、门店后缀、别名、平台名混在商品列里。
+//    加关键词时先跑这一组 —— 改宽一点点就可能把「足道」记成医疗、「面包」记成交通。
+async function testRealCorpus() {
+  console.log('\n=== 5) 真实账单语料（原「其他支出」的行） ===')
+
+  // [交易对方, 商品, 交易类型, 收支, 期望分类]
+  const CASES = [
+    // —— 转账/红包：靠交易类型判，不靠商户名 ——
+    ['媳妇儿（おかあさん版） (Seventeen)', '转账备注:微信转账', '转账', 'expense', 'transfer'],
+    ['mch (TG27)', '转账备注:微信转账', '转账', 'expense', 'transfer'],
+    ['发出群红包', '', '微信红包（群红包）', 'expense', 'transfer'],
+    ['312 (MavR1ck)', '转账备注:微信转账', '转账', 'expense', 'transfer'],
+    // ⚠️ 退款单的交易类型写作「转账-退款」，不能被当成转出去一笔
+    ['游侠客', '游侠客-退款', '游侠客-退款', 'income', 'refund'],
+
+    // —— 订阅/软件 ——
+    ['Apple', 'apple.com/bill/MT9014419Ka0', '商户消费', 'expense', 'subscription'],
+    ['杭州深度求索', 'DeepSeek-API服务(195******35)', '商户消费', 'expense', 'subscription'],
+
+    // —— 娱乐：KTV/足道/景区/福彩 ——
+    ['MEIKTV', 'MeiKTV#410_0', '商户消费', 'expense', 'entertainment'],
+    ['mch (TG27)', '泰谷里·影院足道·汤泉SPA·美食（高新店）-美团App-26092511100300001307624477725889', '商户消费', 'expense', 'entertainment'],
+    ['游侠客', '第九届太湖登山节｜10.17穹窿山主会场', '商户消费', 'expense', 'entertainment'],
+    ['天街福彩', '', '扫二维码付款', 'expense', 'entertainment'],
+    // Steam 买断游戏算娱乐，不算订阅
+    ['蒸汽平台', '蒸汽平台交易 254046330636743996', '商户消费', 'expense', 'entertainment'],
+    ['VALVE', 'Steam Purchase 1710000186960415', '商户消费', 'expense', 'entertainment'],
+
+    // —— 餐饮：门店名不带「餐/饭」的那些 ——
+    ['哈麦德兰州牛肉拉面', '哈麦德兰州牛肉拉面', '商户消费', 'expense', 'food'],
+    ['阿均拉面', '收款方备注:二维码收款', '扫二维码付款', 'expense', 'food'],
+    ['麻辣香锅', '麻辣香锅家常菜', '商户消费', 'expense', 'food'],
+    ['卡旺卡', '南京龙湖江北天街店到店付', '商户消费', 'expense', 'food'],
+    ['luckin coffee', '订单付款', '商户消费', 'expense', 'food'],
+    ['蒸味坊鲜包', '蒸味坊鲜包【买单】消费4.00元', '商户消费', 'expense', 'food'],
+    ['浦口区开花鸡腿店', '浦口区开花鸡腿店', '商户消费', 'expense', 'food'],
+    ['南京慢面包林场店', '4818FU_南京慢面包林场店', '商户消费', 'expense', 'food'],
+
+    // —— 交通：通勤班车 ——
+    ['南京力合创展科技服务有限公司', '研创园-虚拟车票购买-20261015074516-JO0DC-bus-ticket', '商户消费', 'expense', 'transport'],
+    // 「小红车」是南京本地的共享单车品牌，只有城市名 + 品牌名，没有「单车/骑行」这类品类词。
+    // 故意**不为它单独加关键词**：为单个城市品牌建规则，等于把这份账单变成某个人的账本。
+    // 留在「其他」是诚实的 —— 宁愿少认，也不要为凑比例硬猜。
+    ['小红车', '收款方备注:二维码收款', '扫二维码付款', 'expense', 'other_expense'],
+
+    // —— 购物：便利店/小超，名字里不带「便利店」三个字 ——
+    ['便利蜂', '便利蜂购物', '商户消费', 'expense', 'shopping'],
+    ['旅途易购', 'FH1F十足', '商户消费', 'expense', 'shopping'],
+    ['江北新区芙蓉兴盛', '', '商户消费', 'expense', 'shopping'],
+
+    // —— 住房：生活缴费没有「电费」两个字 ——
+    ['国网江苏电力生活缴费', '生活缴费', '商户消费', 'expense', 'housing'],
+
+    // —— 诚实地留在「其他」：看不出是什么行业就不猜 ——
+    ['兰花飘香', '收款方备注:二维码收款', '扫二维码付款', 'expense', 'other_expense'],
+    ['孙道翔', '收款方备注:二维码收款', '扫二维码付款', 'expense', 'other_expense'],
+    ['状元铺子', '', '扫二维码付款', 'expense', 'other_expense']
+  ]
+
+  const wrong = []
+  for (const [title, product, tradeType, type, expect] of CASES) {
+    const r = await call({ action: 'classify', bill: { title, product, tradeType, type } })
+    const got = r.category && r.category.id
+    if (got !== expect) wrong.push(`「${title}」→ ${got}（期望 ${expect}）`)
+  }
+  t(wrong.length === 0, wrong.length ? wrong.join('；') : `全部 ${CASES.length} 条命中正确分类`)
+
+  // 交易类型缺失时（手动记账）不能靠它兜底猜错：没关键词就该留在「其他」
+  const r = await call({ action: 'classify', bill: { title: '张三', product: '', type: 'expense' } })
+  t(r.category.id === 'other_expense', '手动记账没有交易类型时，光一个人名不会被硬判成转账')
+}
+
 ;(async () => {
   await testClassify()
   await testValidate()
@@ -346,6 +424,7 @@ async function testIntegration() {
   await testEdge()
   await testDuplicate()
   await testIntegration()
+  await testRealCorpus()
 
   console.log(fail === 0 ? '\n全部通过 ✅' : `\n有 ${fail} 项失败 ❌`)
   process.exit(fail === 0 ? 0 : 1)
