@@ -22,11 +22,24 @@
  *   --primary-color **不会**跟着变 —— 主题切换会出现「一部分变了、一部分没变」。
  */
 
+// 自定义色的色值计算（纯函数，见文件开头的 13 令牌说明）
+const color = require('./theme-color.js')
+
 // 本地存储键（改键名会导致老用户主题回到默认，非必要不要动）
 const STORAGE_KEY = 'app_theme_id'
 
+// 自定义色的存储键（与 STORAGE_KEY 分开存：切回内置主题后还要记住用户挑过的颜色）
+const CUSTOM_KEY = 'app_theme_custom'
+
 // 默认主题：微信绿
 const DEFAULT_ID = 'green'
+
+// 自定义主题的 id。⚠️ 它**不在 THEMES 里**：
+//   THEMES 是「静态色板」，每套都对应 app.wxss 里一个 .theme-<id> 类与一组预生成的
+//   tabBar 图标；而自定义色是运行时算出来的，没有对应的静态类（令牌由内联 style 注入）。
+//   混进 THEMES 会让静态检查、图标生成脚本都要求一份不存在的静态定义。
+const CUSTOM_ID = 'custom'
+const CUSTOM_NAME = '自定义'
 
 // 页面底色（app.wxss 的 --surface-2 / app.json 的 window.backgroundColor 同值）。
 // 下拉刷新时只有「顶部露出区」是 hero 色，其余仍是这个浅灰 —— 否则底部过度滚动
@@ -72,8 +85,22 @@ function list() {
   return THEMES
 }
 
+/** 用户挑过的自定义色（'' 表示没设过 / 存的值不合法） */
+function customHex() {
+  try {
+    return color.normalizeHex(wx.getStorageSync(CUSTOM_KEY))
+  } catch (e) {
+    return ''
+  }
+}
+
 /** 把任意输入收敛成合法 id，非法值一律回落到默认主题 */
 function normalize(id) {
+  if (id === CUSTOM_ID) {
+    // ⚠️ 没有色值就没有自定义主题可言：只认 id 会在页面上挂一个
+    //    没有任何令牌的 .theme-custom，整页变成无色（黑字压白底、按钮全白）。
+    return customHex() ? CUSTOM_ID : DEFAULT_ID
+  }
   for (let i = 0; i < THEMES.length; i++) {
     if (THEMES[i].id === id) return id
   }
@@ -81,6 +108,18 @@ function normalize(id) {
 }
 
 function byId(id) {
+  if (id === CUSTOM_ID) {
+    const hex = customHex() || THEMES[0].brand
+    const brand = color.brandOf(hex) || THEMES[0].brand
+    return {
+      id: CUSTOM_ID,
+      name: CUSTOM_NAME,
+      brand: brand,
+      hero: color.heroOf(brand),
+      hex: hex
+    }
+  }
+
   const safe = normalize(id)
   for (let i = 0; i < THEMES.length; i++) {
     if (THEMES[i].id === safe) return THEMES[i]
@@ -103,13 +142,35 @@ function current() {
 }
 
 /**
+ * 当前主题要内联在页面根节点上的样式（只有自定义主题才有值）
+ *
+ * 内置主题：令牌全在 app.wxss 的 .theme-<id> 里，返回 ''。
+ * 自定义主题：令牌由 JS 算出来内联注入 —— 见 theme-color.js 的 styleOf()，
+ *            它等价于"在根节点声明这一套 CSS 变量"，子树（含 fixed 弹层）自动继承。
+ *
+ * ⚠️ 必须在页面的 data 初始化时就取（而不是 onShow 才 setData）：
+ *    否则自定义主题下**首帧**是没有令牌的，整页会闪一下无色再变成用户的颜色。
+ */
+function rootStyle() {
+  if (currentId() !== CUSTOM_ID) return ''
+  return color.styleOf(customHex())
+}
+
+// tabBar / 导航栏的"已应用"标记要带上色值：同一套主题换成另一个自定义色，
+// 只用 id 当标记会认为"已经同步过"而跳过，界面就停在旧颜色上
+function markOf(id) {
+  return id === CUSTOM_ID ? CUSTOM_ID + ':' + customHex() : id
+}
+
+/**
  * 把主题色同步到原生 tabBar。
  * ⚠️ 只有 tabBar 页面能调这两个接口，在非 tabBar 页调用会 fail（已静默忽略）。
  * @param {boolean} force 同一主题也强制重设（用户手动切换后用）
  */
 function syncTabBar(force) {
   const id = currentId()
-  if (!force && appliedTabTheme === id) return
+  const mark = markOf(id)
+  if (!force && appliedTabTheme === mark) return
 
   const theme = byId(id)
 
@@ -118,16 +179,24 @@ function syncTabBar(force) {
     selectedColor: theme.brand,
     backgroundColor: '#ffffff',
     borderStyle: 'white',
-    success: () => { appliedTabTheme = id },
+    success: () => { appliedTabTheme = mark },
     fail: () => { /* 不在 tabBar 页，下次进入 tabBar 页会重试 */ }
   })
+
+  // ⚠️ 选中图标是**预生成的 PNG**，没法在运行时染色（原生 tabBar 只吃图片文件）。
+  //    所以自定义色按色相分成 12 档，取最近的一档：同色相、同饱和度，
+  //    只有明度差一点，81px 的图标上基本看不出来。
+  //    内置主题仍用各自那一套（-active-<id>.png）。
+  const suffix = id === CUSTOM_ID
+    ? 'h' + (color.hueBucket(theme.brand) * color.HUE_STEP)
+    : id
 
   TAB_SHAPES.forEach((shape, index) => {
     // 相对路径形式与 app.json 保持一致，避免两种写法在小程序里解析不一致
     wx.setTabBarItem({
       index,
       iconPath: 'assets/icons/' + shape + '.png',
-      selectedIconPath: 'assets/icons/' + shape + '-active-' + id + '.png',
+      selectedIconPath: 'assets/icons/' + shape + '-active-' + suffix + '.png',
       fail: () => { /* 同上，忽略 */ }
     })
   })
@@ -144,14 +213,15 @@ function syncTabBar(force) {
  */
 function syncNavBar(force) {
   const id = currentId()
-  if (!force && appliedNavTheme === id) return
+  const mark = markOf(id)
+  if (!force && appliedNavTheme === mark) return
 
   const theme = byId(id)
 
   wx.setNavigationBarColor({
     frontColor: '#ffffff',
     backgroundColor: theme.hero,
-    success: () => { appliedNavTheme = id },
+    success: () => { appliedNavTheme = mark },
     // 不在当前页面栈顶或基础库太低时失败：不打标记，下次进页面会自动重试
     fail: () => { /* 忽略 */ }
   })
@@ -175,10 +245,14 @@ function syncNavBar(force) {
 function attach(page, withTabBar, withNavBar) {
   if (!page || typeof page.setData !== 'function') return
   const id = currentId()
+  const style = rootStyle()
+
   // 相同就不 setData，省掉一次跨线程通信
-  if (!page.data || page.data.theme !== id) {
-    page.setData({ theme: id })
-  }
+  const patch = {}
+  if (!page.data || page.data.theme !== id) patch.theme = id
+  if (!page.data || page.data.themeStyle !== style) patch.themeStyle = style
+  if (Object.keys(patch).length) page.setData(patch)
+
   if (withTabBar) syncTabBar(false)
   if (withNavBar) syncNavBar(false)
 }
@@ -189,15 +263,35 @@ function attach(page, withTabBar, withNavBar) {
  * 注意这里**只**同步 tabBar，不同步导航栏：本页（我的）导航栏是白底黑字，
  * 跟主题无关。首页的导航栏会在它自己的 onShow（attach 的第三个参数）里刷新。
  *
+ * @param {string} id   主题 id，内置主题 id 或 CUSTOM_ID
+ * @param {string} [hex] 自定义色（只有 id === CUSTOM_ID 时需要）
  * @returns {object} 主题对象
  */
-function setCurrent(id) {
-  const theme = byId(id)
-  try {
-    wx.setStorageSync(STORAGE_KEY, theme.id)
-  } catch (e) {
-    // 存储失败不阻塞切换：本次会话仍然生效，只是下次启动回默认
+function setCurrent(id, hex) {
+  let theme
+
+  if (id === CUSTOM_ID) {
+    const h = color.normalizeHex(hex)
+    // 没有合法色值就当作没切：宁可不动，也不要把页面切成"无色"
+    if (!h) return byId(CUSTOM_ID)
+
+    try {
+      wx.setStorageSync(CUSTOM_KEY, h)
+    } catch (e) {
+      // 存储失败不阻塞切换：本次会话仍然生效，只是下次启动回默认
+    }
+    try {
+      wx.setStorageSync(STORAGE_KEY, CUSTOM_ID)
+    } catch (e) { /* 同上 */ }
+
+    theme = byId(CUSTOM_ID)
+  } else {
+    theme = byId(id)
+    try {
+      wx.setStorageSync(STORAGE_KEY, theme.id)
+    } catch (e) { /* 同上 */ }
   }
+
   syncTabBar(true)
   return theme
 }
@@ -205,12 +299,18 @@ function setCurrent(id) {
 module.exports = {
   DEFAULT_ID: DEFAULT_ID,
   STORAGE_KEY: STORAGE_KEY,
+  CUSTOM_ID: CUSTOM_ID,
+  CUSTOM_NAME: CUSTOM_NAME,
+  CUSTOM_KEY: CUSTOM_KEY,
   PAGE_BG: PAGE_BG,
   list: list,
   normalize: normalize,
   byId: byId,
   currentId: currentId,
   current: current,
+  customHex: customHex,
+  normalizeHex: color.normalizeHex,
+  rootStyle: rootStyle,
   syncTabBar: syncTabBar,
   syncNavBar: syncNavBar,
   attach: attach,

@@ -58,6 +58,11 @@ const NICK_BAD = /[\u0000-\u001F\u007F-\u009F]/
  */
 const THEME_RE = /^[a-z][a-z0-9]{2,15}$/
 
+// 自定义主题的色值。与前端 utils/theme-color.js 的 normalizeHex 同一口径：
+// ⚠️ 只认 #RRGGBB：三位简写（#7c1）在云端展开成六位会与前端存的值对不上，
+//    两边比对时会被误判成「云端的主题和本机不一样」，从而反复覆盖。
+const THEME_CUSTOM_RE = /^#[0-9A-Fa-f]{6}$/
+
 exports.main = async (event, context) => {
   try {
     const openid = cloud.getWXContext().OPENID
@@ -114,6 +119,8 @@ async function getProfile(openid) {
     uid: newUid(),
     nickname: '',
     theme: '',
+    // 自定义主题的色值（theme === 'custom' 时才有意义）
+    themeCustom: '',
     // 预算额度（每月支出上限）。null = 没设过 —— 界面据此显示"还没有预算"的引导，
     // 而不是显示一条 0 元的进度条（配置缺失和额度用尽是两件事）。
     budget: null,
@@ -151,6 +158,7 @@ function publicProfile(doc) {
     uid: doc.uid || '',
     nickname: typeof doc.nickname === 'string' ? doc.nickname : '',
     theme: typeof doc.theme === 'string' ? doc.theme : '',
+    themeCustom: typeof doc.themeCustom === 'string' ? doc.themeCustom.toUpperCase() : '',
     budget: readBudget(doc),
     quickPicks: readQuickPicks(doc),
     quickPicksMode: readQuickPicksMode(doc)
@@ -240,6 +248,13 @@ async function updateProfile(openid, event) {
     patch.theme = t
   }
 
+  if (event.themeCustom !== undefined) {
+    // 空串合法：表示「清掉自定义色」
+    const c = String(event.themeCustom === null || event.themeCustom === undefined ? '' : event.themeCustom).trim()
+    if (c && !THEME_CUSTOM_RE.test(c)) return bad('颜色参数不合法')
+    patch.themeCustom = c ? c.toUpperCase() : ''
+  }
+
   if (!Object.keys(patch).length) return bad('没有要更新的内容')
 
   patch.updatedAt = Date.now()
@@ -264,6 +279,9 @@ async function updateProfile(openid, event) {
       uid: got.data.uid,
       nickname: patch.nickname !== undefined ? patch.nickname : got.data.nickname,
       theme: patch.theme !== undefined ? patch.theme : got.data.theme,
+      // 自定义主题的色值：与 theme 一样如实回传（切回内置主题时 themeCustom 保留，
+      // 用户再点「自定义」还能看到上次挑的颜色）
+      themeCustom: patch.themeCustom !== undefined ? patch.themeCustom : got.data.themeCustom,
       // 改昵称/主题时预算没动，但要**如实回传**：
       // 前端拿到返回体就整份写进本机缓存，少给一个字段等于顺手把预算抹掉。
       budget: got.data.budget

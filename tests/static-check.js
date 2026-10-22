@@ -763,6 +763,13 @@ if (!exists(themeJsPath)) {
     if (exists(wxml) && !/class="[^"]*\btheme-\{\{/.test(read(wxml).replace(/<!--[\s\S]*?-->/g, ''))) {
       err(rel(wxml), '根节点没有挂 theme-{{theme}} 类（本页不会跟随主题变色）')
     }
+
+    // 自定义主题的 13 个令牌是**内联注入**的，根节点少了 style 就只剩一个空的
+    // .theme-custom 类 —— 页面不会有任何品牌色（按钮变白底黑字），而且不报错。
+    if (exists(wxml) && !/style="\{\{themeStyle\}\}"/.test(read(wxml))) {
+      err(rel(wxml), '根节点没有 style="{{themeStyle}}"（自定义主题下本页会没有品牌色）')
+    }
+
     if (exists(js)) {
       const src = read(js)
       if (!/require\(['"][^'"]*utils\/theme\.js['"]\)/.test(src)) {
@@ -770,6 +777,40 @@ if (!exists(themeJsPath)) {
       }
       if (!/theme\.attach\(/.test(src)) {
         err(rel(js), '没有调用 theme.attach(this)（主题切换后本页不会刷新）')
+      }
+      // 首帧就要有令牌：只靠 attach（onShow）会先闪一下无色
+      if (!/themeStyle:\s*theme\.rootStyle\(\)/.test(src)) {
+        err(rel(js), 'data 里缺少 themeStyle: theme.rootStyle()（自定义主题下首帧会无色再变回来）')
+      }
+    }
+  }
+
+  // 自定义主题的 tabBar 选中图标：12 个色相档 × 每个 tab 形状，缺一个就会显示空白图标
+  const colorSrc = exists(path.join(ROOT, 'utils/theme-color.js'))
+    ? read(path.join(ROOT, 'utils/theme-color.js'))
+    : ''
+  if (!colorSrc) {
+    err('utils/theme-color.js', '缺失：自定义主题的色值计算依赖它')
+  } else {
+    const stepsMatch = colorSrc.match(/const HUE_STEPS = (\d+)/)
+    const steps = stepsMatch ? parseInt(stepsMatch[1], 10) : 0
+    if (!steps) {
+      err('utils/theme-color.js', '缺少 HUE_STEPS（tabBar 分档图标按它决定档数）')
+    } else {
+      const missing = []
+      for (let i = 0; i < steps; i++) {
+        const deg = Math.round(i * 360 / steps) % 360
+        for (const shape of TAB_SHAPES) {
+          const f = `assets/icons/${shape}-active-h${deg}.png`
+          if (!exists(f)) missing.push(f)
+        }
+      }
+      if (missing.length) {
+        err('assets/icons', `${missing.length} 个色相分档图标缺失（跑一次 python tools/gen-icons.py）：${missing.slice(0, 6).join(', ')}…`)
+      }
+      // theme.js 拼路径的规则必须与生成脚本的命名一致
+      if (!/h'\s*\+\s*\(color\.hueBucket/.test(read(path.join(ROOT, 'utils/theme.js')))) {
+        err('utils/theme.js', "syncTabBar 里没有按 hueBucket 拼 -active-h<度数>.png（自定义主题会显示空白图标）")
       }
     }
   }
@@ -810,6 +851,18 @@ for (const f of WXML_FILES) {
       referenced.add(`assets/icons/${shape}-active-${m[1]}.png`)
       referenced.add(`assets/icons/${shape}.png`)
     }
+  }
+
+  // 自定义主题的分档图标是**运行时拼路径**的（-active-h<度数>.png），
+  // WXML 里不可能出现文件名，所以按 theme-color.js 的档数把这批也标记为"已引用"。
+  const colorSrc = exists(path.join(ROOT, 'utils', 'theme-color.js'))
+    ? read(path.join(ROOT, 'utils', 'theme-color.js'))
+    : ''
+  const stepsMatch = colorSrc.match(/const HUE_STEPS = (\d+)/)
+  const steps = stepsMatch ? parseInt(stepsMatch[1], 10) : 0
+  for (let i = 0; i < steps; i++) {
+    const deg = Math.round(i * 360 / steps) % 360
+    for (const shape of TAB_SHAPES) referenced.add(`assets/icons/${shape}-active-h${deg}.png`)
   }
 }
 for (const f of ALL.filter(x => /assets[\\/].*\.(png|jpg|jpeg)$/i.test(x))) {

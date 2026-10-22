@@ -1,5 +1,6 @@
 const version = require('../../utils/version.js')
 const theme = require('../../utils/theme.js')
+const color = require('../../utils/theme-color.js')
 const share = require('../../utils/share.js')
 const user = require('../../utils/user.js')
 
@@ -57,16 +58,93 @@ const INITIAL_THEME = theme.current()
 // 同理：昵称也从本机缓存同步读，首帧就带着名字
 const INITIAL_PROFILE = user.current()
 
+/**
+ * 自定义色的预览数据。
+ * ⚠️ 预览里显示的是**最终会生效**的颜色（brandOf 会做明度收敛），
+ *    而不是用户点下去的那个原始值 —— 否则"预览一个色、出去是另一个色"，
+ *    这种不一致用户一定会发现，而且会认为功能坏了。
+ */
+function previewOf(hex) {
+  const brand = color.brandOf(hex) || hex
+  return { hex: hex, brand: brand, hero: color.heroOf(brand) }
+}
+
+/** 主题列表里"自定义"那一格的色块：挑过色就用那个色，没挑过给一条彩虹渐变 */
+function customSwatch() {
+  const hex = theme.customHex()
+  if (hex) return 'background:' + hex
+  return 'background:linear-gradient(135deg,#F97316 0%,#EC4899 34%,#6D4AE0 66%,#2B5CE6 100%)'
+}
+
+// 调色板：12 个色相 × 3 档明度（顺序按色相分组，一次挑完色相与深浅）
+const PALETTE = color.palette()
+
+/** 两个色相之间的最短距离（0~180）。0° 与 330° 只差 30°，不能按绝对差算 */
+function hueDist(a, b) {
+  const d = Math.abs(a - b) % 360
+  return d > 180 ? 360 - d : d
+}
+
+/**
+ * 找与给定颜色最接近的色块。
+ *
+ * ⚠️ 为什么需要它：预设主题的品牌色（如 #07C160）并不在色板里。
+ *    打开调色板时如果直接用预设色，色板里**一格都不会高亮**，
+ *    用户会以为"什么都没选中、也不知道从哪开始"。
+ *    高亮最近的一格，等于给了他一个可感知的起点。
+ */
+function nearestChip(hex) {
+  const hsl = color.hexToHsl(hex)
+  if (!hsl) return PALETTE[0].hex
+
+  // 第一步：按色相选出最近的一族（红/橙/黄…）
+  let family = PALETTE[0]
+  let bestD = Infinity
+  for (let i = 0; i < PALETTE.length; i++) {
+    const d = hueDist(PALETTE[i].hue, hsl.h)
+    if (d < bestD) {
+      bestD = d
+      family = PALETTE[i]
+    }
+  }
+
+  // 第二步：在同一色相的三档里挑**亮度**最接近的。
+  // ⚠️ 只按色相选会永远落到"深"档（数组里第一格），
+  //    于是微信绿用户打开色板看到的是一格偏暗的墨绿，和他现在的颜色不像。
+  const target = color.luminance(color.brandOf(hex))
+  let best = family
+  let bestL = Infinity
+  for (let i = 0; i < PALETTE.length; i++) {
+    const c = PALETTE[i]
+    if (c.hue !== family.hue) continue
+    const dl = Math.abs(color.luminance(c.hex) - target)
+    if (dl < bestL) {
+      bestL = dl
+      best = c
+    }
+  }
+  return best.hex
+}
+
 Page({
   data: {
     versionLabel: version.VERSION_LABEL,
 
     // 主题
     theme: INITIAL_THEME.id,
+    // 自定义主题的 13 个令牌（内置主题为 ''，令牌都在 app.wxss 的 .theme-<id> 里）
+    themeStyle: theme.rootStyle(),
     themeName: INITIAL_THEME.name,
     themeBrand: INITIAL_THEME.brand,
     themeList: theme.list(),
     showThemeSheet: false,
+
+    // 自定义颜色
+    showColorSheet: false,
+    cpChips: PALETTE,
+    // 未挑过色时以当前品牌色为起点，用户进来看到的就是"现在的颜色"，不是随机色
+    cp: previewOf(theme.customHex() || INITIAL_THEME.brand),
+    customSwatch: customSwatch(),
 
     // 昵称
     nickname: INITIAL_PROFILE.nickname,
@@ -122,10 +200,17 @@ Page({
   applyTheme() {
     theme.attach(this, true)
     const t = theme.current()
+
     // 只在真的变了才 setData，省掉一次跨线程通信
-    if (this.data.themeName !== t.name || this.data.themeBrand !== t.brand) {
-      this.setData({ themeName: t.name, themeBrand: t.brand })
-    }
+    const patch = {}
+    if (this.data.themeName !== t.name) patch.themeName = t.name
+    if (this.data.themeBrand !== t.brand) patch.themeBrand = t.brand
+
+    // 「自定义」那一格的色块跟着本机存的自定义色走
+    const sw = customSwatch()
+    if (this.data.customSwatch !== sw) patch.customSwatch = sw
+
+    if (Object.keys(patch).length) this.setData(patch)
   },
 
   // ---------------- 设置：昵称 ----------------
@@ -219,12 +304,68 @@ Page({
       theme: t.id,
       themeName: t.name,
       themeBrand: t.brand,
+      // 内置主题没有内联令牌，必须把它清掉 ——
+      // 否则从自定义色切回内置主题时，旧的 --brand 会一直压在根节点上盖住 .theme-<id>
+      themeStyle: theme.rootStyle(),
       showThemeSheet: false
     })
     // 再异步推到云端，让配色跟着账号走。失败了不提示也不回滚 ——
     // 本机已经生效了，只是"换设备看不到这个偏好"，不值得打断用户。
     user.syncTheme(t.id)
     wx.showToast({ title: '已切换为' + t.name, icon: 'none' })
+  },
+
+  // ---------------- 设置：自定义颜色 ----------------
+
+  /** 打开调色板（从主题弹层里点「自定义」进来） */
+  openColorSheet() {
+    // 挑过自定义色就从它开始；没挑过则从"最接近当前品牌色"的那一格开始
+    const saved = theme.customHex()
+    this.setData({
+      showThemeSheet: false,
+      showColorSheet: true,
+      cp: previewOf(saved || nearestChip(this.data.themeBrand))
+    })
+  },
+
+  closeColorSheet() {
+    this.setData({ showColorSheet: false })
+  },
+
+  /** 点色块：只更新预览，不立刻落盘 —— 用户还会继续比较 */
+  onPickColor(e) {
+    const hex = e.currentTarget.dataset.hex
+    if (!hex) return
+    this.setData({ cp: previewOf(hex) })
+  },
+
+  /**
+   * 确认使用自定义色
+   *
+   * ⚠️ 落盘之后必须把 themeStyle 一起写进 data：
+   *    本页根节点的内联令牌是 data 驱动的，只改 theme id 会让 class 变成
+   *    .theme-custom 而令牌还是上一套 —— 页面会变成"新主题 + 旧颜色"的混合体。
+   */
+  onConfirmColor() {
+    const hex = color.normalizeHex(this.data.cp.hex)
+    if (!hex) {
+      wx.showToast({ title: '这个颜色不可用，换一个试试', icon: 'none' })
+      return
+    }
+
+    const t = theme.setCurrent(theme.CUSTOM_ID, hex)
+
+    this.setData({
+      theme: t.id,
+      themeName: t.name,
+      themeBrand: t.brand,
+      themeStyle: theme.rootStyle(),
+      customSwatch: customSwatch(),
+      showColorSheet: false
+    })
+
+    user.syncTheme(t.id, hex)
+    wx.showToast({ title: '已用上自定义色', icon: 'none' })
   },
 
   onPullDownRefresh() {

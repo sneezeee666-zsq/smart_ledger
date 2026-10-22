@@ -1,6 +1,6 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<view class="import-page theme-{{theme}}">
+<view class="import-page theme-{{theme}}" style="{{themeStyle}}">
   <!-- 自定义导航栏 -->
   <view class="nav-bar" style="padding-top: {{statusBarHeight}}px;">
     <view class="nav-content">

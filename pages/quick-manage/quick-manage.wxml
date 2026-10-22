@@ -1,6 +1,6 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<view class="qm-page theme-{{theme}}">
+<view class="qm-page theme-{{theme}}" style="{{themeStyle}}">
   <!-- ⚠️ 用 scroll-view 并动态关掉 scroll-y：
        拖动排序时如果页面还能滚，手指上下移动会把页面一起带着滚，
        拖拽位置就算不准了（这是小程序里做拖拽排序最容易翻车的地方）。 -->

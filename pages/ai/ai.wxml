@@ -1,4 +1,4 @@
-<view class="container theme-{{theme}}">
+<view class="container theme-{{theme}}" style="{{themeStyle}}">
 
   <!-- ==================== 分析卡 ====================
        与「我的」的品牌卡同一套令牌（--hero-top/-grad/-glow）：

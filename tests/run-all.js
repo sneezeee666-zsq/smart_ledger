@@ -25,7 +25,9 @@ const SUITES = [
   ['分享转发（隐私页不带数据/统计页带数字/每页都能转发）', 'share-test.js'],
   ['快捷记账面板（金额清洗/点预填 vs 长按直存/提交形态）', 'quick-add-test.js'],
   ['常记的配置（纯函数/云端保存/推荐优先级/清空语义）', 'quick-picks-test.js'],
-  ['主题系统（回落/tabBar 图标/持久化）', 'theme-test.js'],
+  ['主题系统（回落/tabBar 图标/持久化/自定义色）', 'theme-test.js'],
+  ['自定义主题色（对比度/渐变亮度比/13 令牌/色相分档）', 'theme-color-test.js'],
+  ['我的页自定义颜色（预览→确认→切换的状态同步）', 'profile-color-test.js'],
   ['用户档案（自动建档/昵称规则/越权/主题偏好）', 'user-test.js']
 ]
 

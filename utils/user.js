@@ -16,6 +16,7 @@
  * 顶部说明。前端不需要、也不应该存储任何密码或 token。
  */
 const theme = require('./theme.js')
+const themeColor = require('./theme-color.js')
 
 // 本机缓存键（改键名会让老用户的本机昵称丢失，非必要不要动）
 const STORAGE_KEY = 'app_user_profile'
@@ -36,7 +37,7 @@ const BUDGET_DECIMALS = 2
 // ⚠️ 嵌套对象（{budget:{amount}}）看着更整齐，但"只改一个子字段"时
 //    必须区分「这次没传」和「这次传了 null」，稍有不慎就会把没动过的字段清零。
 //    扁平结构下 undefined 天然表示"没传"，判断只有一处。
-const EMPTY = { uid: '', nickname: '', theme: '', budget: 0, budgetTime: 0, quickPicks: null, quickPicksMode: 'auto' }
+const EMPTY = { uid: '', nickname: '', theme: '', themeCustom: '', budget: 0, budgetTime: 0, quickPicks: null, quickPicksMode: 'auto' }
 
 // 本机缓存（进程内），避免每次读 storage
 let cached = null
@@ -59,6 +60,8 @@ function readStorage() {
         uid: str(raw.uid, ''),
         nickname: str(raw.nickname, ''),
         theme: str(raw.theme, ''),
+        // 自定义主题的色值（theme === 'custom' 时才有意义）
+        themeCustom: themeColor.normalizeHex(raw.themeCustom),
         budget: hasBudget ? Math.round(budget * 100) / 100 : 0,
         budgetTime: hasBudget ? (Number(raw.budgetTime) || 0) : 0,
         // null = 没配置过「常记的」；数组（含空数组）= 配置过
@@ -133,10 +136,19 @@ function merge(partial) {
     quickPicksMode = p.quickPicksMode === 'manual' ? 'manual' : 'auto'
   }
 
+  // 自定义主题的色值（只有 theme === 'custom' 时才有意义）。
+  // ⚠️ 与 theme 分开成两个字段存：切回内置主题后色值要留着，
+  //    否则用户再点「自定义」会发现上次挑的颜色没了，得重新调一遍。
+  let themeCustom = cur.themeCustom
+  if (p.themeCustom !== undefined) {
+    themeCustom = themeColor.normalizeHex(p.themeCustom)
+  }
+
   return writeStorage({
     uid: str(p.uid, cur.uid),
     nickname: str(p.nickname, cur.nickname),
     theme: str(p.theme, cur.theme),
+    themeCustom: themeCustom,
     budget: budget,
     budgetTime: budgetTime,
     quickPicks: quickPicks,
@@ -288,15 +300,27 @@ function setBudget(raw) {
  * 不值得弹错误打断用户。
  * @returns {Promise<boolean>} 是否同步成功
  */
-function syncTheme(id) {
+function syncTheme(id, hex) {
+  const data = { action: 'updateProfile', theme: String(id === null || id === undefined ? '' : id) }
+
+  // ⚠️ 自定义主题必须连色值一起送：只把 'custom' 这个 id 送到云端，
+  //    另一台设备拉下来会是一个"没有颜色的自定义主题"，直接回落到默认色。
+  if (id === theme.CUSTOM_ID) {
+    const h = themeColor.normalizeHex(hex)
+    if (!h) return Promise.resolve(false)
+    data.themeCustom = h
+  }
+
   return wx.cloud.callFunction({
     name: 'user',
-    data: { action: 'updateProfile', theme: String(id === null || id === undefined ? '' : id) }
+    data: data
   }).then(res => {
     const r = (res && res.result) || {}
     if (r.code !== 0) return false
-    // 只更新 theme 字段 —— merge() 会把没提到的字段（昵称/预算）原样保留
-    merge({ theme: r.data.theme })
+    // 只更新主题相关字段 —— merge() 会把没提到的字段（昵称/预算）原样保留
+    const patch = { theme: r.data.theme }
+    if (r.data.themeCustom !== undefined) patch.themeCustom = r.data.themeCustom
+    merge(patch)
     return true
   }).catch(err => {
     console.error('主题偏好同步失败（不影响本机使用）:', err)
@@ -315,8 +339,24 @@ function syncTheme(id) {
  * @returns {boolean} 是否发生了变更
  */
 function adoptRemoteTheme() {
-  const remote = current().theme
+  const me = current()
+  const remote = me.theme
   if (!remote) return false
+
+  // ---- 自定义主题：要连色值一起比、一起落 ----
+  // ⚠️ 不能走下面的 normalize(remote) 判断：normalize('custom') 依赖本机**已经存了**色值，
+  //    换设备时本机还没有色值，会被判成"不认识这个主题"而放弃同步 ——
+  //    用户会发现"换了手机，自定义色没了"。所以先用云端色值落地，再比较。
+  if (remote === theme.CUSTOM_ID) {
+    const hex = themeColor.normalizeHex(me.themeCustom)
+    if (!hex) return false
+
+    if (theme.currentId() === theme.CUSTOM_ID && theme.customHex() === hex) return false
+
+    theme.setCurrent(theme.CUSTOM_ID, hex)
+    return true
+  }
+
   if (remote === theme.currentId()) return false
   if (theme.normalize(remote) !== remote) return false
 

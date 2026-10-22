@@ -225,8 +225,8 @@ async function testIsolation() {
   t(!('_openid' in r.data), '返回体里没有 _openid（它是账号身份证，客户端不需要）')
   t(!('_id' in r.data) && !('createdAt' in r.data) && !('updatedAt' in r.data),
     '返回体里没有 _id / 时间戳这些内部字段')
-  t(Object.keys(r.data).sort().join(',') === 'budget,nickname,theme,uid',
-    `返回体字段恰好是 uid/nickname/theme/budget（实际 ${Object.keys(r.data).sort().join(',')}）`)
+  t(Object.keys(r.data).sort().join(',') === 'budget,nickname,theme,themeCustom,uid',
+    `返回体字段恰好是 uid/nickname/theme/themeCustom/budget（实际 ${Object.keys(r.data).sort().join(',')}）`)
 
   // 拿不到 openid 时必须明确失败，不能默默建一条没主的档案
   OPENID = ''
@@ -259,6 +259,24 @@ async function testTheme() {
 
   r = await update({ theme: 'green' })
   t(r.code === 0 && r.data.theme === 'green', '合法主题写入成功')
+
+  // ---- 自定义主题：id + 色值成对存 ----
+  // ⚠️ 只存 id 不存色值的话，换设备拉下来就是一个"没有颜色的自定义主题"
+  r = await update({ theme: 'custom', themeCustom: '#2e8b57' })
+  t(r.code === 0 && r.data.theme === 'custom', 'custom 是合法主题 id（不在这里维护白名单）')
+  t(r.data.themeCustom === '#2E8B57', `色值统一成大写存（实际 ${r.data.themeCustom}）`)
+  t(DB.users[0].themeCustom === '#2E8B57', '落库的是规范化后的色值')
+
+  for (const bad of ['zzz', '#12345', '#GGGGGG', '#1234567', 'rgb(1,2,3)']) {
+    r = await update({ themeCustom: bad })
+    if (r.code !== -1) t(false, `非法色值 ${bad} 应该被拒，却通过了`)
+  }
+  t(true, '五位/七位/非十六进制/rgb() 全部被拒（只认 #RRGGBB）')
+
+  // 切回内置主题：色值要留着，下次点「自定义」还能看到上次挑的颜色
+  r = await update({ theme: 'blue' })
+  t(r.code === 0 && r.data.theme === 'blue' && r.data.themeCustom === '#2E8B57',
+    '切回内置主题时色值保留（不然用户再点「自定义」得重新调一遍）')
 
   r = await update({ theme: '' })
   t(r.code === 0 && r.data.theme === '', '空串 = 清除云端偏好（前端会保留本机选择）')
@@ -378,6 +396,38 @@ async function testFrontendModule() {
   m.current()
   t(m.adoptRemoteTheme() === false && STORE[T_KEY] === 'violet',
     '云端是一个本机不认识的主题 id → 保留本机选择（否则用户会被"越登录越退步"）')
+
+  // --- 自定义主题跨设备：id + 色值必须一起落地 ---
+  // ⚠️ 只落地 id 的写法在换设备时必然失败：本机还没有色值，normalize('custom') 会回落到默认绿，
+  //    用户看到的是"换了手机，自定义色没了"。
+  const setupCustom = (cloudTheme, cloudHex, localTheme, localHex) => {
+    STORE = {}
+    const doc = { uid: 'u1', nickname: '小明', theme: cloudTheme }
+    if (cloudHex !== undefined) doc.themeCustom = cloudHex
+    STORE[u.STORAGE_KEY] = doc
+    if (localTheme !== undefined) STORE[T_KEY] = localTheme
+    if (localHex !== undefined) STORE[themeUtil.CUSTOM_KEY] = localHex
+    return freshUserUtil()
+  }
+
+  m = setupCustom('custom', '#2E8B57', 'green')
+  m.current()
+  t(m.adoptRemoteTheme() === true, '云端是自定义色、本机是内置主题 → 采纳')
+  t(STORE[T_KEY] === 'custom' && STORE[themeUtil.CUSTOM_KEY] === '#2E8B57',
+    `本机的 id 与色值一起被写成 custom / #2E8B57（实际 ${STORE[T_KEY]} / ${STORE[themeUtil.CUSTOM_KEY]}）`)
+
+  m = setupCustom('custom', '#2e8b57', 'custom', '#2E8B57')
+  m.current()
+  t(m.adoptRemoteTheme() === false, '云端与本机是同一个自定义色（大小写不同）→ 不做无谓的写入')
+
+  m = setupCustom('custom', undefined, 'violet')
+  m.current()
+  t(m.adoptRemoteTheme() === false && STORE[T_KEY] === 'violet',
+    '云端只存了 custom 却没色值 → 保留本机（宁可不同步，也不要变成"没有颜色的自定义主题"）')
+
+  m = setupCustom('custom', 'zzz', 'violet')
+  m.current()
+  t(m.adoptRemoteTheme() === false && STORE[T_KEY] === 'violet', '云端色值非法 → 同样保留本机')
 
   // --- 云函数不可用时的降级 ---
   m = setup('blue', 'green')

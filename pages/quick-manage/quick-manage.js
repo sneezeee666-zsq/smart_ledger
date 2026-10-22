@@ -23,6 +23,8 @@ const qp = require('../../utils/quick-picks.js')
 Page({
   data: {
     theme: theme.currentId(),
+    // 自定义主题的 13 个令牌（内置主题为 ''，令牌都在 app.wxss 的 .theme-<id> 里）
+    themeStyle: theme.rootStyle(),
 
     limit: qp.LIMIT,
     titleMax: qp.TITLE_MAX,

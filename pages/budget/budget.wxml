@@ -1,6 +1,6 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<view class="container theme-{{theme}}">
+<view class="container theme-{{theme}}" style="{{themeStyle}}">
 
   <!-- ==================== 本月进度 ====================
        有预算才渲染。⚠️ 未设预算时**不显示**一条 0/0 的进度条 ——

@@ -1,6 +1,6 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<view class="container theme-{{theme}} {{loading ? 'is-loading' : ''}}">
+<view class="container theme-{{theme}} {{loading ? 'is-loading' : ''}}" style="{{themeStyle}}">
 
   <!-- ==================== 周期切换 ==================== -->
   <view class="seg period-seg">

@@ -1,6 +1,6 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<view class="container-flush theme-{{theme}}">
+<view class="container-flush theme-{{theme}}" style="{{themeStyle}}">
 
   <!-- ==================== 顶部概览 ==================== -->
   <view class="hero">

@@ -20,8 +20,10 @@
   <python> tools/gen-icons.py <项目根>
 依赖： Pillow
 """
+import json
 import os
 import re
+import subprocess
 import sys
 from PIL import Image, ImageDraw
 
@@ -121,7 +123,7 @@ def ic_spark(d, c):
     poly(d, _star_points(18.7, 5.6, 3.9, 0.32), c)
 
 
-
+def ic_plus(d, c):
     stroke(d, [(12, 4.6), (12, 19.4)], c, 2.4)
     stroke(d, [(4.6, 12), (19.4, 12)], c, 2.4)
 
@@ -217,7 +219,7 @@ def ic_info(d, c):
     stroke(d, [(12, 11.2), (12, 16.8)], c, 2.1)
 
 
-
+def ic_bookmark(d, c):
     """书签：常记的（可复用的快捷账单）。顶部平、底部 V 形缺口。"""
     stroke(d, [(7.2, 3.8), (7.2, 20.4), (12, 16.0), (16.8, 20.4), (16.8, 3.8)], c, 2.0, close=True)
 
@@ -227,6 +229,41 @@ def ic_inbox(d, c):
     stroke(d, [(3.2, 13.4), (3.2, 18.0), (20.8, 18.0), (20.8, 13.4)], c, 1.9)
     stroke(d, [(3.2, 13.4), (7.2, 13.4), (8.8, 16.0), (15.2, 16.0), (16.8, 13.4), (20.8, 13.4)], c, 1.9)
     stroke(d, [(6.4, 8.6), (12, 3.4), (17.6, 8.6)], c, 1.9)
+
+
+# ---------------------------------------------- 从 utils/theme-color.js 取自定义色分档
+
+def read_buckets(root):
+    """
+    分档图标要用的颜色，**直接问 node**：调色板、分档、图标三者必须同一套色，
+    颜色数学只写在 utils/theme-color.js 一处。在这里再实现一遍 HSL→RGB
+    就等于养了第二份色表 —— 两边差 1 度色相，图标和文字就不是同一个色了。
+
+    ⚠️ 所以本脚本依赖 node（项目本身就是 JS 项目，不算额外负担）；
+       没有 node 时直接报错退出，不静默降级成另一套算法。
+
+    返回 [(色相度数, (r, g, b, 255), '#RRGGBB'), ...]
+    """
+    script = ("const tc=require('./utils/theme-color.js');"
+              "process.stdout.write(JSON.stringify(tc.bucketPalette()))")
+    node = os.environ.get('NODE') or 'node'
+
+    try:
+        out = subprocess.check_output([node, '-e', script], cwd=root, stderr=subprocess.STDOUT)
+    except Exception as err:
+        raise SystemExit('生成分档图标需要 node（用来从 utils/theme-color.js 取色）：%s' % err)
+
+    data = json.loads(out.decode('utf-8').strip())
+    if not data:
+        raise SystemExit('utils/theme-color.js 的 bucketPalette() 没有返回任何颜色')
+
+    buckets = []
+    for item in data:
+        hexcolor = item['hex']
+        rgb = (int(hexcolor[1:3], 16), int(hexcolor[3:5], 16), int(hexcolor[5:7], 16), 255)
+        buckets.append((int(item['hue']), rgb, hexcolor))
+
+    return buckets
 
 
 # ---------------------------------------------------------------- 从 utils/theme.js 取主题
@@ -304,6 +341,15 @@ def main():
     for tid, color, _hex in themes:
         for shape, fn_name in TAB_SHAPES:
             jobs.append(('%s-active-%s.png' % (shape, tid), ICONS[fn_name], color, TAB_SIZE))
+
+    # ---- tabBar 选中：自定义色按色相分档（12 档）----
+    # 文件名必须是 <shape>-active-h<deg>.png —— utils/theme.js 的 syncTabBar 按这个规则拼路径
+    buckets = read_buckets(root)
+    print('自定义色分档：%d 档 —— %s'
+          % (len(buckets), ', '.join('h%d %s' % (d, hx) for d, _, hx in buckets)))
+    for deg, color, _hx in buckets:
+        for shape, fn_name in TAB_SHAPES:
+            jobs.append(('%s-active-h%d.png' % (shape, deg), ICONS[fn_name], color, TAB_SIZE))
 
     # ---- 首页快捷入口（三种颜色是设计上的区分，不跟主题走）----
     # 底色在中 WXSS 里与图标同色系：act-import/act-add/act-budget

@@ -24,6 +24,8 @@ Page({
   data: {
     // 当前主题（根节点 class 用；初始化即读本地值，避免首帧闪一下默认色）
     theme: theme.currentId(),
+    // 自定义主题的 13 个令牌（内置主题为 ''，令牌都在 app.wxss 的 .theme-<id> 里）
+    themeStyle: theme.rootStyle(),
 
     greeting: greet.build(bjNow().getUTCHours(), user.nickname()),
     dateText: '',

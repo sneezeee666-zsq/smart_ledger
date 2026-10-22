@@ -123,9 +123,12 @@ theme.setCurrent('violet')
 
 // ---------------------------------------------------------------- attach
 console.log('\n=== attach(page)：不重复 setData，主题变了才刷新 ===')
-function fakePage(dataTheme) {
+function fakePage(dataTheme, dataStyle) {
+  const d = {}
+  if (dataTheme !== undefined) d.theme = dataTheme
+  if (dataStyle !== undefined) d.themeStyle = dataStyle
   return {
-    data: dataTheme === undefined ? {} : { theme: dataTheme },
+    data: d,
     setDataCalls: [],
     setData(patch) { this.setDataCalls.push(patch) }
   }
@@ -134,10 +137,10 @@ function fakePage(dataTheme) {
 const p1 = fakePage()                       // data 里还没有 theme
 theme.attach(p1)
 t(p1.setDataCalls.length === 1 && p1.setDataCalls[0].theme === 'violet', 'data 里没有 theme → 写一次（当前主题 violet）')
-const p2 = fakePage('violet')               // 已经是对的
+const p2 = fakePage('violet', '')           // 已经是对的（内置主题的内联样式就是空串）
 theme.attach(p2)
 t(p2.setDataCalls.length === 0, 'data 里已经是对的 → 零 setData（省跨线程通信）')
-const p3 = fakePage('blue')                 // 过期了
+const p3 = fakePage('blue', '')             // 过期了
 theme.attach(p3)
 t(p3.setDataCalls.length === 1 && p3.setDataCalls[0].theme === 'violet', 'data 里的主题过期 → 纠正为 violet')
 
@@ -211,6 +214,88 @@ theme.syncNavBar(false)
 t(navCalls.length === 2, '上一次同步失败后，下次进页面会自动重试（失败不打「已同步」标记）')
 t(navCalls[1].backgroundColor === theme.byId('rose').hero, '重试时用的仍是当前主题的 hero 色')
 
+// ---------------------------------------------------------------- 自定义主题
+console.log('\n=== 自定义主题（custom）：一个 id + 一个色值 ===')
+
+theme.setCurrent('green')
+apiShouldFail = false
+itemCalls.length = 0
+styleCalls.length = 0
+
+const CUSTOM_HEX = '#2E8B57'
+const ct = theme.setCurrent(theme.CUSTOM_ID, CUSTOM_HEX)
+
+t(ct.id === 'custom', 'setCurrent(custom, hex) 返回自定义主题对象')
+t(theme.currentId() === 'custom', 'currentId() 变成 custom')
+t(store[theme.STORAGE_KEY] === 'custom', '本地存储里的主题 id 是 custom')
+t(store[theme.CUSTOM_KEY] === CUSTOM_HEX,
+  '色值单独存一份（切回内置主题后还要记得用户挑过什么）')
+t(theme.customHex() === CUSTOM_HEX, 'customHex() 读得回来')
+
+// 内联令牌：13 个变量，一个都不能少
+const rs = theme.rootStyle()
+t(rs.indexOf('--brand:' + CUSTOM_HEX) === 0, `rootStyle 以 --brand 开头（实际 ${rs.slice(0, 24)}…）`)
+t((rs.match(/--/g) || []).length === 13,
+  `内联样式里有 13 个变量（实际 ${(rs.match(/--/g) || []).length}）—— 少一个就会有地方停在旧颜色`)
+
+// tabBar：文字色用自定义色，选中图标按色相分档
+const customPaths = itemCalls.map(c => c.selectedIconPath)
+t(customPaths.length === SHAPES.length,
+  `自定义主题也把 ${SHAPES.length} 个 tab 的图标各设一次（实际 ${customPaths.length}）`)
+t(customPaths.every(p => /-active-h\d+\.png$/.test(p)),
+  `选中图标走色相分档：${customPaths[0] || '（无）'}`)
+t(customPaths.every(p => exists(p)), '分档图标文件真实存在（漏生成会在真机上显示空白图标）')
+t(styleCalls[styleCalls.length - 1].selectedColor === theme.byId(theme.CUSTOM_ID).brand,
+  'tabBar 选中文字色 = 自定义品牌色')
+
+// 同一套分档只算一次：切到同一色相下的另一个色值，图标路径不变但文字色要更新
+itemCalls.length = 0
+theme.setCurrent(theme.CUSTOM_ID, '#2F8C58')
+t(styleCalls[styleCalls.length - 1].selectedColor === theme.byId(theme.CUSTOM_ID).brand,
+  '换成另一个自定义色 → tabBar 文字色跟着变（标记里带了色值，不会被当成"已同步"跳过）')
+
+// ---- 脏数据与非法输入 ----
+store[theme.STORAGE_KEY] = 'custom'
+delete store[theme.CUSTOM_KEY]
+t(theme.currentId() === theme.DEFAULT_ID,
+  '只有 id 没有色值 → 回落默认主题（绝不挂一个没有令牌的 .theme-custom，那会让整页无色）')
+t(theme.rootStyle() === '', '回落时 rootStyle 为空串')
+
+theme.setCurrent('green')
+theme.setCurrent(theme.CUSTOM_ID, 'zzz')
+t(theme.currentId() === 'green', '非法色值 → 不切换（保持原主题）')
+theme.setCurrent('green')
+theme.setCurrent(theme.CUSTOM_ID, '#7c1')
+t(theme.customHex() === '#77CC11', `三位简写会被展开成六位再存（实际 ${theme.customHex()}）`)
+
+// ---- 切回内置主题：内联令牌必须清掉 ----
+theme.setCurrent(theme.CUSTOM_ID, CUSTOM_HEX)
+theme.setCurrent('violet')
+t(theme.rootStyle() === '',
+  '切回内置主题后 rootStyle 变回空串（留着旧令牌会盖住 .theme-violet，变成「新主题+旧颜色」）')
+t(theme.customHex() === CUSTOM_HEX, '切回内置主题后仍记得自定义色（再点「自定义」不用重新调）')
+t(store[theme.STORAGE_KEY] === 'violet', '存储里的主题 id 回到内置主题')
+
+// ---- attach：首帧就要带上令牌 ----
+theme.setCurrent(theme.CUSTOM_ID, CUSTOM_HEX)
+const cp = fakePage()
+theme.attach(cp)
+t(cp.setDataCalls.length === 1 && cp.setDataCalls[0].theme === 'custom', 'attach 把 theme 写成 custom')
+t(typeof cp.setDataCalls[0].themeStyle === 'string' && cp.setDataCalls[0].themeStyle.indexOf('--brand:') === 0,
+  'attach 同时把 13 个令牌写进 data（只改 theme 不改 themeStyle = 有 class 没颜色）')
+
+const cp2 = fakePage('custom', theme.rootStyle())
+theme.attach(cp2)
+t(cp2.setDataCalls.length === 0, '已经一致 → 零 setData（内联样式是长字符串，更不能每次都推）')
+
+// ---- 导航栏：自定义主题用推出来的 hero ----
+navCalls.length = 0
+theme.setCurrent(theme.CUSTOM_ID, CUSTOM_HEX)
+theme.attach(fakePage(), false, true)
+t(navCalls.length === 1 && navCalls[0].backgroundColor === theme.byId(theme.CUSTOM_ID).hero,
+  `首页导航栏染成自定义 hero（${theme.byId(theme.CUSTOM_ID).hero}），否则顶部会露出一条色差带`)
+
+theme.setCurrent('green')
 console.log('\n=== 主题清单与 app.wxss / 图标的一致性交给 static-check.js ===')
 
 console.log(fail === 0 ? '\n全部通过 ✅' : `\n有 ${fail} 项失败 ❌`)

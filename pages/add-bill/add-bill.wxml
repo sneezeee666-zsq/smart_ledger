@@ -1,4 +1,4 @@
-<view class="page theme-{{theme}}">
+<view class="page theme-{{theme}}" style="{{themeStyle}}">
 
   <!-- ==================== 收/支 + 金额 ==================== -->
   <view class="card amount-card">

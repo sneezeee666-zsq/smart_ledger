@@ -8,7 +8,7 @@
  */
 
 // 语义化版本号
-const VERSION = '1.1.0'
+const VERSION = '1.0.4'
 
 // 发布阶段：'dev' 开发中 | 'beta' 内测 | 'release' 已发布
 const STAGE = 'release'

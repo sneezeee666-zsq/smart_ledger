@@ -271,6 +271,104 @@
   color: var(--ink-3);
 }
 
+/* 「自定义」色块上的加号：没有对勾时提示"这里能配颜色" */
+.theme-pen {
+  color: #fff;
+  font-size: 42rpx;
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 1rpx 4rpx rgba(12, 20, 38, 0.35);
+}
+
+/* ==================== 调色板（自定义颜色弹层） ==================== */
+
+/* 预览块用**行内**的 cp.brand / cp.hero 上色，而不是 var(--brand)：
+   用户点色块时先看预览再确认，此时页面主题还没变，变量还是旧的 */
+.cp-prev {
+  height: 96rpx;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cp-prev-t {
+  color: #fff;
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.cp-hero {
+  margin-top: 14rpx;
+  border-radius: var(--r-md);
+  padding: 22rpx 26rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.cp-hero-k {
+  font-size: 21rpx;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.cp-hero-v {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #fff;
+}
+
+.cp-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 26rpx 2rpx 14rpx;
+}
+
+.cp-label {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.cp-hex {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+/* 6 列：36 个色块（12 色相 × 3 深浅）刚好 6 行 */
+.cp-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
+.cp-chip {
+  width: calc((100% - 70rpx) / 6);
+  height: 74rpx;
+  border-radius: 16rpx;
+  box-shadow: inset 0 0 0 1rpx rgba(16, 26, 46, 0.06);
+}
+
+/* 选中态用双层描边 + 不用 border（border 会撑大盒子导致整行错位） */
+.cp-chip.is-on {
+  box-shadow:
+    0 0 0 4rpx var(--surface),
+    0 0 0 8rpx var(--ink-1);
+}
+
+.cp-tip {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 21rpx;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+.cp-ok {
+  margin-top: 26rpx;
+}
+
 /* ==================== 昵称编辑弹层 ==================== */
 
 /* 输入框和字数计数共用一个外框：看起来是「一个输入区域」，

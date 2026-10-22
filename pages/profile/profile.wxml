@@ -1,4 +1,4 @@
-<view class="container theme-{{theme}}">
+<view class="container theme-{{theme}}" style="{{themeStyle}}">
 
   <!-- ==================== 顶部品牌卡 ==================== -->
   <view class="hero">
@@ -158,9 +158,67 @@
           </view>
           <text class="theme-name">{{item.name}}</text>
         </view>
+
+        <!-- 自定义：不复用上面的 v-for（它不是静态色板，点了要开调色板而不是直接切） -->
+        <view
+          class="theme-cell {{theme === 'custom' ? 'is-on' : ''}}"
+          bindtap="openColorSheet"
+          hover-class="theme-cell-hover"
+          hover-stay-time="60"
+        >
+          <view class="theme-swatch" style="{{customSwatch}}">
+            <text class="theme-tick" wx:if="{{theme === 'custom'}}">✓</text>
+            <text class="theme-pen" wx:else>+</text>
+          </view>
+          <text class="theme-name">自定义</text>
+        </view>
       </view>
 
-      <text class="theme-note">切换后立即生效：首页、账单、统计、我的，以及底部导航的图标与文字会一起变色。选择跟着你的账号走，不会影响账单数据。</text>
+      <text class="theme-note">切换后立即生效：首页、账单、统计、我的，以及底部导航的文字会一起变色。选择跟着你的账号走，不会影响账单数据。</text>
+    </view>
+  </view>
+
+  <!-- ==================== 自定义颜色 · 调色板 ====================
+       ⚠️ 只给"能当品牌色用"的颜色，不给连续色谱：
+          连续色谱必然出现用户选得到、但当品牌色不可读的颜色（亮黄、纯白），
+          到那时要么偷偷改掉他的选择，要么让白字按钮看不清。 -->
+  <view class="sheet-mask" wx:if="{{showColorSheet}}" bindtap="closeColorSheet"></view>
+  <view class="sheet" wx:if="{{showColorSheet}}">
+    <view class="sheet-grip"></view>
+    <view class="sheet-head">
+      <text class="sheet-title">自定义颜色</text>
+      <view class="sheet-close" bindtap="closeColorSheet">✕</view>
+    </view>
+
+    <view class="sheet-body">
+      <!-- 预览：一眼看到"按钮长什么样、深色卡片长什么样" -->
+      <view class="cp-prev" style="background: {{cp.brand}};">
+        <text class="cp-prev-t">按钮上的白字</text>
+      </view>
+      <view class="cp-hero" style="background: {{cp.hero}};">
+        <text class="cp-hero-k">本月结余</text>
+        <text class="cp-hero-v">¥ 1,234.00</text>
+      </view>
+
+      <view class="cp-head">
+        <text class="cp-label">色板</text>
+        <text class="cp-hex">{{cp.brand}}</text>
+      </view>
+
+      <view class="cp-grid">
+        <view
+          class="cp-chip {{item.hex === cp.hex ? 'is-on' : ''}}"
+          wx:for="{{cpChips}}"
+          wx:key="hex"
+          data-hex="{{item.hex}}"
+          bindtap="onPickColor"
+          style="background: {{item.hex}};"
+        ></view>
+      </view>
+
+      <text class="cp-tip">每个色相有三档深浅。过亮或过暗的颜色会让白字看不清，所以没有放进色板。</text>
+
+      <button class="btn-primary cp-ok" bindtap="onConfirmColor">使用这个颜色</button>
     </view>
   </view>
 

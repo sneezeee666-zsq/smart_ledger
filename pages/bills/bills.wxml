@@ -1,6 +1,6 @@
 <wxs src="../../utils/format.wxs" module="fmt" />
 
-<view class="page theme-{{theme}}">
+<view class="page theme-{{theme}}" style="{{themeStyle}}">
 
   <!-- ==================== 吸顶筛选区 ==================== -->
   <view class="filter-wrap">
